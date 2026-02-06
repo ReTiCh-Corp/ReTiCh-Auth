@@ -1,0 +1,17 @@
+name: Branch Naming Convention Check
+on:
+  create:
+    branches:
+      - "*"
+jobs:
+  branch-naming-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch naming convention
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          VALID_PATTERNS="^(feat|feat!|fix|build|chore|docs|refactor|style|perf|test|ops)"
+          if [[ ! "$BRANCH_NAME" =~ $VALID_PATTERNS ]]; then
+            echo "Branch name does not follow naming convention."
+            exit 1
+          fi
