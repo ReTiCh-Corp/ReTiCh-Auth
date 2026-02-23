@@ -1,0 +1,17 @@
+FROM golang:1.22-alpine
+
+# Install Air for hot-reload
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /app
+
+# Copy dependency files
+COPY go.mod go.sum* ./
+RUN go mod download
+
+# Copy Air config
+COPY .air.toml .
+
+EXPOSE 8081
+
+CMD ["air", "-c", ".air.toml"]
