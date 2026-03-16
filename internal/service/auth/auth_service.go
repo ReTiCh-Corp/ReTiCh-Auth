@@ -87,6 +87,7 @@ func (s *Service) Register(ctx context.Context, email, password, redirectURL str
 }
 
 type LoginResult struct {
+	UserID       string `json:"user_id,omitempty"`
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int    `json:"expires_in"`
@@ -315,7 +316,7 @@ func (s *Service) ResetPassword(ctx context.Context, rawToken, newPassword strin
 // --- helpers ---
 
 func (s *Service) issueTokens(ctx context.Context, user *models.User, audience string, r *http.Request) (*LoginResult, error) {
-	accessToken, _, err := s.jwtSvc.GenerateAccessToken(user.ID, user.Email, audience)
+	accessToken, _, err := s.jwtSvc.GenerateAccessToken(user.ID, user.Email, audience, "")
 	if err != nil {
 		return nil, fmt.Errorf("generating access token: %w", err)
 	}
@@ -337,6 +338,7 @@ func (s *Service) issueTokens(ctx context.Context, user *models.User, audience s
 	}
 
 	return &LoginResult{
+		UserID:       user.ID.String(),
 		AccessToken:  accessToken,
 		RefreshToken: rawRefresh,
 		ExpiresIn:    int(s.cfg.JWTExpiration.Seconds()),

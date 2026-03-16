@@ -17,7 +17,10 @@ type Config struct {
 	DatabaseURL string
 	RedisURL    string
 
-	JWTSecret              string
+	// RSAPrivateKeyPEM is the PEM-encoded RSA private key (PKCS#1 or PKCS#8) used
+	// to sign JWTs with RS256. Set via RSA_PRIVATE_KEY env var.
+	// If empty in non-production, an ephemeral key is generated (dev convenience).
+	RSAPrivateKeyPEM       string
 	JWTExpiration          time.Duration
 	RefreshTokenExpiration time.Duration
 
@@ -43,6 +46,11 @@ type Config struct {
 	MagicLinkExpiry         time.Duration
 	// RequireEmailVerification: if false, users can log in (password) without verifying their email.
 	RequireEmailVerification bool
+
+	// OAuth 2.0 / OIDC
+	AdminAPIKey   string
+	SessionSecret string
+	SessionExpiry time.Duration
 }
 
 func Load() (*Config, error) {
@@ -55,10 +63,10 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Port:            getEnv("PORT", "8081"),
 		Environment:     getEnv("ENVIRONMENT", "development"),
-		DatabaseURL:     mustGetEnv("DATABASE_URL"),
-		RedisURL:        getEnv("REDIS_URL", "redis://localhost:6379"),
-		JWTSecret:       mustGetEnv("JWT_SECRET"),
-		ResendAPIKey:    mustGetEnv("RESEND_API_KEY"),
+		DatabaseURL:      mustGetEnv("DATABASE_URL"),
+		RedisURL:         getEnv("REDIS_URL", "redis://localhost:6379"),
+		RSAPrivateKeyPEM: os.Getenv("RSA_PRIVATE_KEY"),
+		ResendAPIKey:     mustGetEnv("RESEND_API_KEY"),
 		ResendFromEmail: getEnv("RESEND_FROM_EMAIL", "noreply@example.com"),
 		ResendFromName:  getEnv("RESEND_FROM_NAME", "ReTiCh Auth"),
 		AppURL:          appURL,
@@ -124,6 +132,14 @@ func Load() (*Config, error) {
 	cfg.AccountLockoutAttempts, err = strconv.Atoi(getEnv("ACCOUNT_LOCKOUT_ATTEMPTS", "5"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid ACCOUNT_LOCKOUT_ATTEMPTS: %w", err)
+	}
+
+	cfg.AdminAPIKey = os.Getenv("ADMIN_API_KEY")
+	cfg.SessionSecret = getEnv("SESSION_SECRET", "change-me-in-production-min-32-bytes")
+
+	cfg.SessionExpiry, err = time.ParseDuration(getEnv("SESSION_EXPIRY", "24h"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid SESSION_EXPIRY: %w", err)
 	}
 
 	return cfg, nil

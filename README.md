@@ -1,176 +1,187 @@
-# ReTiCh Auth Service
+# ReTiCh Auth
 
-Service d'authentification pour la plateforme ReTiCh. Gère l'inscription, la connexion, les tokens JWT et les sessions.
+Service d'authentification OAuth 2.0 / OIDC auto-hébergé. Fonctionne comme "Se connecter avec Google" mais sur ta propre infrastructure.
 
 ## Fonctionnalités
 
-- Inscription / Connexion
-- Authentification JWT avec refresh tokens
-- Vérification email
-- Réinitialisation de mot de passe
-- Gestion des sessions
-- Protection contre le brute force
+- Inscription / Connexion par email + mot de passe
+- Authentification JWT RS256 avec refresh tokens rotatifs
+- Vérification email et réinitialisation de mot de passe
+- **OAuth 2.0 Authorization Code Flow + PKCE**
+- **OIDC Discovery** (`/.well-known/openid-configuration`, JWKS)
+- Pages de consentement hébergées (login, register, mot de passe oublié)
+- Gestion des clients OAuth via API admin
+- Protection brute-force, rate limiting Redis, sessions browser httpOnly
+
+---
 
 ## Prérequis
 
-- Go 1.22+
-- PostgreSQL 16+
-- Redis (optionnel, pour les sessions)
-- Docker (optionnel)
+- Docker + Docker Compose
+
+---
 
 ## Démarrage rapide
 
-### Avec Docker (recommandé)
-
 ```bash
-# Depuis le repo ReTiCh-Infrastucture
-make up
-make migrate-auth
+cp .env.example .env   # ajuster les variables si besoin
+docker compose up -d
+curl http://localhost:8081/health   # {"status":"ok"}
 ```
 
-### Sans Docker
+- Auth service : `http://localhost:8081`
+- PostgreSQL : port `5433` (externe)
+- Redis : port `6379`
 
-```bash
-# Installer les dépendances
-go mod download
+Les migrations sont appliquées automatiquement au démarrage.
 
-# Configurer la base de données
-export DATABASE_URL="postgres://retich:retich_secret@localhost:5433/retich_auth?sslmode=disable"
-
-# Lancer les migrations
-migrate -path migrations -database "$DATABASE_URL" up
-
-# Lancer le serveur
-go run cmd/server/main.go
-```
-
-### Développement avec hot-reload
-
-```bash
-# Installer Air
-go install github.com/air-verse/air@latest
-
-# Lancer avec hot-reload
-air -c .air.toml
-```
+---
 
 ## Configuration
 
-Variables d'environnement:
+Copier `.env.example` → `.env` :
 
-| Variable | Description | Défaut |
-|----------|-------------|--------|
-| `PORT` | Port du serveur | `8081` |
-| `DATABASE_URL` | URL PostgreSQL | - |
-| `REDIS_URL` | URL Redis | `redis:6379` |
-| `JWT_SECRET` | Clé secrète JWT | - |
-| `JWT_EXPIRATION` | Durée de vie du token | `24h` |
-| `LOG_LEVEL` | Niveau de log | `info` |
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Port du serveur (défaut `8081`) |
+| `DATABASE_URL` | DSN PostgreSQL |
+| `REDIS_URL` | URL Redis (`redis://localhost:6379`) |
+| `RSA_PRIVATE_KEY` | Clé privée RSA PEM (RS256). Vide en dev → clé éphémère générée |
+| `JWT_EXPIRATION` | Durée de vie access token (défaut `15m`) |
+| `REFRESH_TOKEN_EXPIRATION` | Durée de vie refresh token (défaut `168h`) |
+| `APP_URL` | URL publique du service (`http://localhost:8081`) |
+| `ADMIN_API_KEY` | Clé secrète pour l'API admin (`X-Admin-Key`) |
+| `SESSION_SECRET` | Secret HMAC pour les cookies de session (min 32 chars) |
+| `ALLOWED_ORIGINS` | CORS — origines autorisées |
+| `RESEND_API_KEY` | Clé API Resend (envoi d'emails) |
 
-## Endpoints
+---
+
+## API Admin
+
+Toutes les routes admin nécessitent le header `X-Admin-Key`.
+
+### Créer un client OAuth
+
+```bash
+curl -X POST http://localhost:8081/api/v1/admin/clients \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Key: <ADMIN_API_KEY>" \
+  -d '{
+    "name": "Mon App",
+    "redirect_uris": ["http://localhost:3001/api/auth/callback/retich"],
+    "scopes": ["openid", "email", "profile"]
+  }'
+```
+
+> **Important** : sauvegarder le `client_secret` immédiatement — il n'est affiché qu'une seule fois.
+
+### Endpoints admin
 
 | Méthode | Endpoint | Description |
 |---------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/ready` | Readiness check |
-| POST | `/register` | Inscription |
-| POST | `/login` | Connexion |
-| POST | `/refresh` | Rafraîchir le token |
-| POST | `/logout` | Déconnexion |
-| POST | `/verify-email` | Vérifier l'email |
-| POST | `/forgot-password` | Mot de passe oublié |
-| POST | `/reset-password` | Réinitialiser le mot de passe |
+| `POST` | `/api/v1/admin/clients` | Créer un client OAuth |
+| `GET` | `/api/v1/admin/clients` | Lister tous les clients |
+| `GET` | `/api/v1/admin/clients/{id}` | Détail d'un client |
+| `PATCH` | `/api/v1/admin/clients/{id}` | Modifier un client (nom, URIs, scopes, statut) |
+| `POST` | `/api/v1/admin/clients/{id}/activate` | Réactiver un client désactivé |
+| `DELETE` | `/api/v1/admin/clients/{id}` | Désactiver un client |
+
+---
+
+## Routes exposées
+
+### OAuth 2.0 / OIDC (browser)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /oauth/authorize` | Démarre le flow Authorization Code |
+| `POST /oauth/authorize` | Traite l'action du formulaire de consentement |
+| `GET /oauth/login` | Page de connexion hébergée |
+| `POST /oauth/login` | Traitement de la connexion |
+| `GET /oauth/register` | Page d'inscription hébergée |
+| `POST /oauth/register` | Traitement de l'inscription |
+| `GET /oauth/forgot-password` | Page "mot de passe oublié" hébergée |
+| `POST /oauth/forgot-password` | Envoi de l'email de réinitialisation |
+| `POST /oauth/token` | Échange code → tokens / refresh |
+| `GET /oauth/userinfo` | Infos utilisateur (JWT requis) |
+| `GET /oauth/playground` | Interface de test interactive |
+
+### OIDC Discovery
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /.well-known/openid-configuration` | Métadonnées OIDC |
+| `GET /.well-known/jwks.json` | Clé publique RS256 |
+
+### Auth (email links)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/auth/verify-email` | Validation de l'email |
+| `GET /api/v1/auth/reset-password` | Formulaire de nouveau mot de passe |
+| `POST /api/v1/auth/reset-password` | Enregistrement du nouveau mot de passe |
+
+### Routes protégées (JWT requis)
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/auth/logout` | Invalider le refresh token actuel |
+| `POST /api/v1/auth/logout-all` | Invalider tous les refresh tokens |
+| `GET /api/v1/auth/me` | Profil de l'utilisateur connecté |
+
+---
+
+## Intégration OIDC (NextAuth / Auth.js)
+
+```ts
+// auth.ts
+import NextAuth from "next-auth"
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  providers: [{
+    id: "retich",
+    name: "ReTiCh Auth",
+    type: "oidc",
+    issuer: process.env.RETICH_AUTH_URL,   // ex: http://localhost:8081
+    clientId: process.env.RETICH_CLIENT_ID,
+    clientSecret: process.env.RETICH_CLIENT_SECRET,
+    checks: ["pkce", "state", "nonce"],
+    authorization: { params: { scope: "openid email" } },
+  }],
+})
+```
+
+La `redirect_uri` NextAuth à enregistrer : `{NEXTAUTH_URL}/api/auth/callback/retich`
+
+---
 
 ## Base de données
 
-### Schéma
+| Migration | Contenu |
+|-----------|---------|
+| `000001` | Table `users` |
+| `000002` | Table `refresh_tokens` |
+| `000003` | Table `oauth_clients` |
+| `000004` | Table `authorization_codes` |
+| `000005` | Table `oauth_consents` |
 
-```
-users
-├── id (UUID, PK)
-├── email (UNIQUE)
-├── password_hash
-├── is_verified
-├── is_active
-├── failed_login_attempts
-├── locked_until
-├── last_login_at
-└── timestamps
-
-refresh_tokens
-├── id (UUID, PK)
-├── user_id (FK → users)
-├── token_hash
-├── device_info
-├── ip_address
-├── expires_at
-└── revoked_at
-
-verification_tokens
-├── id (UUID, PK)
-├── user_id (FK → users)
-├── token_hash
-├── token_type (email_verification, password_reset)
-└── expires_at
-
-sessions
-├── id (UUID, PK)
-├── user_id (FK → users)
-├── refresh_token_id (FK)
-├── device_info
-├── ip_address
-├── user_agent
-└── expires_at
-```
-
-### Migrations
-
-```bash
-# Appliquer les migrations
-migrate -path migrations -database "$DATABASE_URL" up
-
-# Rollback
-migrate -path migrations -database "$DATABASE_URL" down 1
-
-# Version actuelle
-migrate -path migrations -database "$DATABASE_URL" version
-```
-
-## Structure du projet
-
-```
-ReTiCh-Auth/
-├── cmd/
-│   └── server/
-│       └── main.go         # Point d'entrée
-├── internal/               # Code interne
-├── migrations/
-│   ├── 000001_init_schema.up.sql
-│   └── 000001_init_schema.down.sql
-├── Dockerfile              # Image production
-├── Dockerfile.dev          # Image développement
-├── .air.toml               # Config hot-reload
-├── go.mod
-└── go.sum
-```
-
-## Tests
-
-```bash
-# Lancer les tests
-go test ./...
-
-# Avec couverture
-go test -cover ./...
-```
+---
 
 ## Sécurité
 
-- Mots de passe hashés avec bcrypt
-- Protection contre le brute force (verrouillage après N tentatives)
-- Tokens JWT signés avec HS256
-- Refresh tokens stockés hashés en base
-- HTTPS obligatoire en production
+| Mécanisme | Détail |
+|-----------|--------|
+| PKCE obligatoire | `code_challenge_method=S256` requis |
+| JWT RS256 | Vérifiables via JWKS public, sans secret partagé |
+| `iss` claim | Validé par les clients OIDC (valeur = `APP_URL`) |
+| Refresh token rotation | Chaque refresh invalide l'ancien token |
+| Rate limiting | Redis — par IP et par action |
+| Verrouillage de compte | Après N tentatives échouées (configurable) |
+| Sessions browser | Cookie httpOnly signé HMAC |
+| `client_secret_basic` | Supporté en plus de `client_secret_post` |
+
+---
 
 ## Licence
 

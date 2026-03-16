@@ -2,6 +2,7 @@ package handlers
 
 import (
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"html/template"
 	"net/http"
@@ -417,4 +418,13 @@ func (h *AuthHandler) remainingJWTTTL(r *http.Request) time.Duration {
 		return 0
 	}
 	return tokenservice.ExpirationFromClaims(claims)
+}
+
+// GET /.well-known/jwks.json
+// Returns the RSA public key in JWK format so external apps can verify tokens
+// locally without sharing any secret.
+func (h *AuthHandler) JWKS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_ = json.NewEncoder(w).Encode(h.jwtSvc.PublicJWKSet())
 }

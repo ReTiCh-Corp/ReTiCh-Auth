@@ -12,11 +12,14 @@ import (
 	"github.com/retich-corp/auth/internal/config"
 	"github.com/retich-corp/auth/internal/database"
 	"github.com/retich-corp/auth/internal/handlers"
+	"github.com/retich-corp/auth/internal/middleware"
 	redisclient "github.com/retich-corp/auth/internal/redis"
 	"github.com/retich-corp/auth/internal/repository"
 	"github.com/retich-corp/auth/internal/router"
 	authservice "github.com/retich-corp/auth/internal/service/auth"
 	emailservice "github.com/retich-corp/auth/internal/service/email"
+	oauthservice "github.com/retich-corp/auth/internal/service/oauth"
+	sessionsvc "github.com/retich-corp/auth/internal/service/session"
 	tokenservice "github.com/retich-corp/auth/internal/service/token"
 )
 
@@ -50,9 +53,13 @@ func main() {
 	userRepo := repository.NewUserRepository(pool)
 	tokenRepo := repository.NewTokenRepository(pool)
 	sessionRepo := repository.NewSessionRepository(pool)
+	oauthRepo := repository.NewOAuthRepository(pool)
 
 	// Services
-	jwtSvc := tokenservice.NewJWTService(cfg.JWTSecret, cfg.JWTExpiration)
+	jwtSvc, err := tokenservice.NewJWTService(cfg.RSAPrivateKeyPEM, cfg.JWTExpiration, cfg.AppURL)
+	if err != nil {
+		log.Fatalf("jwt service error: %v", err)
+	}
 
 	emailSvc, err := emailservice.NewEmailService(cfg.ResendAPIKey, cfg.ResendFromEmail, cfg.ResendFromName)
 	if err != nil {
@@ -61,17 +68,32 @@ func main() {
 
 	authSvc := authservice.NewService(cfg, userRepo, tokenRepo, sessionRepo, jwtSvc, emailSvc, rdb)
 
+	sessionService := sessionsvc.NewService(cfg.SessionSecret, cfg.SessionExpiry, cfg.Environment == "production")
+
+	oauthSvc := oauthservice.NewService(cfg, oauthRepo, userRepo, tokenRepo, jwtSvc, sessionService, rdb)
+
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authSvc, jwtSvc)
 	profileHandler := handlers.NewProfileHandler(userRepo)
+	oauthHandler := handlers.NewOAuthHandler(oauthSvc, authSvc, userRepo, sessionService, cfg.AppURL)
+	adminHandler := handlers.NewAdminHandler(oauthSvc, cfg.AdminAPIKey)
+
+	// CORS: static origins from config + dynamic origins from registered OAuth clients
+	originChecker := middleware.DynamicOriginChecker(
+		cfg.AllowedOrigins,
+		func() ([]string, error) { return oauthRepo.GetAllowedOrigins(ctx) },
+		30*time.Second,
+	)
 
 	// Router
 	h := router.New(router.Deps{
 		AuthHandler:    authHandler,
 		ProfileHandler: profileHandler,
+		OAuthHandler:   oauthHandler,
+		AdminHandler:   adminHandler,
 		JWTService:     jwtSvc,
 		Redis:          rdb,
-		AllowedOrigins: cfg.AllowedOrigins,
+		OriginChecker:  originChecker,
 	})
 
 	srv := &http.Server{

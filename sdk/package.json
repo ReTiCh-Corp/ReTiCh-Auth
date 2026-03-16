@@ -1,0 +1,44 @@
+{
+  "name": "@retish/auth",
+  "version": "1.0.6",
+  "description": "SDK client pour ReTiCh Auth",
+  "author": "ReTiCh Corp",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/retich-auth.cjs",
+  "module": "./dist/retich-auth.js",
+  "types": "./dist/retich-auth.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/retich-auth.js",
+      "require": "./dist/retich-auth.cjs",
+      "types": "./dist/retich-auth.d.ts"
+    },
+    "./react": {
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs",
+      "types": "./dist/react.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "react": "^18.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion — ReTiCh Auth</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:#fdf2f8;color:#1e293b;min-height:100vh;
+    display:flex;align-items:center;justify-content:center}
+  .card{background:#fff;border:1px solid #fce7f3;border-radius:16px;
+    padding:40px 36px;max-width:400px;width:90%;
+    box-shadow:0 25px 50px rgba(219,39,119,.08)}
+  .logo{text-align:center;margin-bottom:28px}
+  .logo span{font-size:28px;font-weight:800;background:linear-gradient(135deg,#db2777,#f43f5e);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  h1{font-size:20px;font-weight:700;text-align:center;margin-bottom:6px;color:#1e293b}
+  .subtitle{font-size:13px;color:#94a3b8;text-align:center;margin-bottom:28px}
+  .app-name{color:#db2777;font-weight:600}
+  label{display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+  input[type=email],input[type=password]{width:100%;padding:11px 14px;
+    background:#fff;border:1px solid #e2e8f0;border-radius:8px;
+    color:#1e293b;font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s}
+  input[type=email]:focus,input[type=password]:focus{border-color:#db2777;box-shadow:0 0 0 3px rgba(219,39,119,.08)}
+  .field{margin-bottom:18px}
+  .btn{width:100%;padding:12px;border-radius:10px;font-size:14px;font-weight:600;
+    cursor:pointer;border:none;background:linear-gradient(135deg,#db2777,#f43f5e);
+    color:#fff;margin-top:8px;transition:opacity .15s}
+  .btn:hover{opacity:.88}
+  .error{background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;
+    padding:10px 14px;font-size:13px;color:#e11d48;margin-bottom:18px}
+  .links{display:flex;justify-content:space-between;margin-top:20px;font-size:12px}
+  .links a{color:#94a3b8;text-decoration:none}
+  .links a:hover{color:#db2777}
+  .register-link{text-align:center;margin-top:16px;font-size:13px;color:#94a3b8}
+  .register-link a{color:#db2777;text-decoration:none;font-weight:500}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo"><span>ReTiCh</span></div>
+
+  {{if .AppName}}
+  <h1>Se connecter</h1>
+  <p class="subtitle">pour continuer vers <span class="app-name">{{.AppName}}</span></p>
+  {{else}}
+  <h1>Se connecter</h1>
+  <p class="subtitle">Accédez à votre compte ReTiCh</p>
+  {{end}}
+
+  {{if .Error}}
+  <div class="error">{{.Error}}</div>
+  {{end}}
+
+  <form method="POST" action="/oauth/login">
+    <input type="hidden" name="return_to" value="{{.ReturnTo}}">
+
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" value="{{.Email}}" required autofocus placeholder="vous@exemple.com">
+    </div>
+
+    <div class="field">
+      <label for="password">Mot de passe</label>
+      <input type="password" id="password" name="password" required placeholder="••••••••">
+    </div>
+
+    <button type="submit" class="btn">Se connecter →</button>
+  </form>
+
+  <div class="links">
+    <a href="/oauth/forgot-password?return_to={{.ReturnTo}}">Mot de passe oublié ?</a>
+  </div>
+
+  <div class="register-link">
+    Pas encore de compte ?
+    <a href="/oauth/register?return_to={{.ReturnTo}}">Créer un compte</a>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OAuth Playground — ReTiCh</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:#0f172a;color:#f1f5f9;min-height:100vh;padding:32px 16px}
+
+  .wrap{max-width:680px;margin:0 auto}
+  .header{text-align:center;margin-bottom:32px}
+  .header .logo{font-size:26px;font-weight:800;
+    background:linear-gradient(135deg,#3b82f6,#8b5cf6);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .header h1{font-size:20px;font-weight:700;color:#f8fafc;margin-top:6px}
+  .header p{font-size:13px;color:#64748b;margin-top:4px}
+
+  .tabs{display:flex;gap:4px;background:#1e293b;border:1px solid #334155;
+    border-radius:12px;padding:4px;margin-bottom:24px}
+  .tab{flex:1;padding:9px 0;border-radius:9px;font-size:13px;font-weight:600;
+    text-align:center;cursor:pointer;color:#64748b;border:none;
+    background:transparent;transition:all .15s}
+  .tab.active{background:#3b82f6;color:#fff}
+  .tab:hover:not(.active){color:#94a3b8;background:#0f172a}
+
+  .card{background:#1e293b;border:1px solid #334155;border-radius:16px;
+    padding:32px 28px;box-shadow:0 25px 50px rgba(0,0,0,.4);margin-bottom:20px}
+  .card-title{font-size:13px;font-weight:700;color:#94a3b8;
+    text-transform:uppercase;letter-spacing:.06em;margin-bottom:20px;
+    display:flex;align-items:center;gap:10px}
+
+  .field{margin-bottom:16px}
+  label{display:block;font-size:12px;font-weight:600;color:#94a3b8;
+    text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  input[type=text],input[type=password],textarea{width:100%;padding:11px 14px;
+    background:#0f172a;border:1px solid #334155;border-radius:8px;
+    color:#f1f5f9;font-size:13px;outline:none;transition:border .15s;font-family:inherit}
+  input:focus,textarea:focus{border-color:#3b82f6}
+  textarea{resize:vertical;min-height:72px;line-height:1.5}
+
+  .scopes{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+  .scope-chip{display:flex;align-items:center;gap:7px;padding:8px 12px;
+    background:#0f172a;border:1px solid #334155;border-radius:8px;
+    font-size:13px;color:#94a3b8;cursor:pointer;transition:all .15s;user-select:none}
+  .scope-chip:hover{border-color:#3b82f6;color:#f1f5f9}
+  .scope-chip input[type=checkbox]{width:14px;height:14px;accent-color:#3b82f6;cursor:pointer}
+  .scope-chip.checked{border-color:#3b82f6;color:#f1f5f9;background:#1e3a5f}
+
+  .btn{width:100%;padding:12px;border-radius:10px;font-size:14px;font-weight:600;
+    cursor:pointer;border:none;background:#3b82f6;color:#fff;transition:opacity .15s;margin-top:4px}
+  .btn:hover:not(:disabled){opacity:.85}
+  .btn:disabled{background:#334155;color:#475569;cursor:not-allowed}
+  .btn-sm{width:auto;padding:5px 12px;font-size:12px;margin-top:0;border-radius:7px}
+  .btn-ghost{background:#0f172a;border:1px solid #334155;color:#94a3b8}
+  .btn-ghost:hover{border-color:#3b82f6;color:#f1f5f9;opacity:1}
+  .btn-prefill{background:#1e293b;border:1px solid #334155;color:#93c5fd;margin-top:16px}
+
+  .alert{padding:12px 14px;border-radius:10px;font-size:13px;margin-top:16px;line-height:1.5}
+  .alert-err{background:#450a0a22;border:1px solid #7f1d1d;color:#fca5a5}
+  .alert-ok{background:#052e1622;border:1px solid #14532d;color:#86efac}
+
+  .result-card{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:16px 18px;margin-top:12px}
+  .result-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+  .result-row:last-child{margin-bottom:0}
+  .result-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;
+    letter-spacing:.06em;min-width:110px;padding-top:6px;flex-shrink:0}
+  .result-value{font-size:12px;color:#e2e8f0;word-break:break-all;background:#1e293b;
+    border:1px solid #334155;border-radius:6px;padding:7px 10px;flex:1;
+    font-family:'SF Mono','Fira Code',monospace;max-height:80px;overflow:auto}
+  .copy-btn{padding:5px 11px;font-size:11px;font-weight:600;background:#1e293b;
+    border:1px solid #334155;border-radius:6px;color:#64748b;cursor:pointer;
+    white-space:nowrap;transition:all .15s;flex-shrink:0}
+  .copy-btn:hover{border-color:#3b82f6;color:#93c5fd}
+  .copy-btn.copied{border-color:#14532d;color:#86efac}
+
+  .pkce-info{background:#0f172a;border:1px solid #334155;border-radius:10px;
+    padding:14px 16px;margin-top:16px;font-size:12px;color:#64748b}
+  .pkce-info strong{color:#94a3b8;display:block;margin-bottom:8px;font-size:11px;
+    text-transform:uppercase;letter-spacing:.06em}
+  .pkce-row{display:flex;gap:8px;align-items:flex-start;margin-bottom:6px}
+  .pkce-row:last-child{margin-bottom:0}
+  .pkce-key{min-width:110px;color:#475569;font-size:11px;padding-top:2px;flex-shrink:0}
+  .pkce-val{font-family:'SF Mono','Fira Code',monospace;color:#cbd5e1;
+    font-size:11px;word-break:break-all}
+
+  .badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;
+    background:#14532d;color:#86efac;text-transform:uppercase;letter-spacing:.05em}
+
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.2);
+    border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  hr.divider{border:none;border-top:1px solid #1e293b;margin:20px 0}
+
+  .panel{display:none}
+  .panel.active{display:block}
+
+  .banner{border-radius:12px;padding:16px 20px;margin-bottom:24px;
+    display:flex;align-items:flex-start;gap:12px}
+  .banner .icon{font-size:20px;flex-shrink:0;line-height:1.4}
+  .banner h3{font-size:14px;font-weight:700;margin-bottom:4px}
+  .banner p{font-size:12px;line-height:1.5}
+  .banner-info{background:#1e3a5f;border:1px solid #1e40af}
+  .banner-info h3{color:#93c5fd}
+  .banner-info p{color:#60a5fa}
+  .banner-err{background:#450a0a22;border:1px solid #7f1d1d}
+  .banner-err h3{color:#fca5a5}
+  .banner-err p{color:#f87171}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="logo">ReTiCh</div>
+    <h1>OAuth 2.0 Playground</h1>
+    <p>Testez le flux Authorization Code + PKCE (S256) en temps réel</p>
+  </div>
+
+  <div class="banner banner-info" id="callback-banner" style="display:none">
+    <div class="icon">🔄</div>
+    <div>
+      <h3>Callback reçu — échange en cours...</h3>
+      <p id="callback-status">Échange du code contre les tokens...</p>
+    </div>
+  </div>
+
+  <div class="banner banner-err" id="error-banner" style="display:none">
+    <div class="icon">✕</div>
+    <div>
+      <h3 id="error-banner-title">Erreur OAuth</h3>
+      <p id="error-banner-msg"></p>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-register" onclick="switchTab('register')">＋ Enregistrer un client</button>
+    <button class="tab" id="tab-flow" onclick="switchTab('flow')">⇄ Tester le flux</button>
+  </div>
+
+  <!-- ======== PANEL: Register ======== -->
+  <div class="panel active" id="panel-register">
+    <div class="card">
+      <div class="card-title">Enregistrer un nouveau client OAuth</div>
+
+      <div class="field">
+        <label for="reg-name">Nom de l'application</label>
+        <input type="text" id="reg-name" placeholder="Mon Application">
+      </div>
+
+      <div class="field">
+        <label for="reg-key">Admin API Key <span style="color:#475569;text-transform:none;font-weight:400">(X-Admin-Key)</span></label>
+        <input type="password" id="reg-key" placeholder="••••••••">
+      </div>
+
+      <div class="field">
+        <label for="reg-uris">Redirect URIs <span style="color:#475569;text-transform:none;font-weight:400">(une par ligne)</span></label>
+        <textarea id="reg-uris" placeholder="http://localhost:8081/oauth/playground"></textarea>
+      </div>
+
+      <button class="btn" id="reg-btn" onclick="registerClient()">Enregistrer le client</button>
+      <div id="reg-msg"></div>
+
+      <div id="reg-result" style="display:none">
+        <hr class="divider">
+        <div class="card-title" style="margin-bottom:12px">
+          Client créé ✓
+          <span style="color:#86efac;font-size:11px;font-weight:400;text-transform:none">Sauvegardez le secret — il ne sera plus affiché</span>
+        </div>
+        <div class="result-card">
+          <div class="result-row">
+            <span class="result-label">client_id</span>
+            <span class="result-value" id="res-client-id"></span>
+            <button class="copy-btn" onclick="copyEl('res-client-id',this)">Copier</button>
+          </div>
+          <div class="result-row">
+            <span class="result-label">client_secret</span>
+            <span class="result-value" id="res-client-secret"></span>
+            <button class="copy-btn" onclick="copyEl('res-client-secret',this)">Copier</button>
+          </div>
+          <div class="result-row">
+            <span class="result-label">redirect_uris</span>
+            <span class="result-value" id="res-uris"></span>
+          </div>
+        </div>
+        <button class="btn btn-prefill" onclick="prefillFlow()">→ Utiliser dans le flux</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PANEL: Flow ======== -->
+  <div class="panel" id="panel-flow">
+    <div class="card">
+      <div class="card-title">Paramètres du flux</div>
+
+      <div class="field">
+        <label for="flow-cid">client_id</label>
+        <input type="text" id="flow-cid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+      </div>
+
+      <div class="field">
+        <label for="flow-secret">client_secret</label>
+        <input type="password" id="flow-secret" placeholder="••••••••">
+      </div>
+
+      <div class="field">
+        <label>Scopes</label>
+        <div class="scopes">
+          <label class="scope-chip checked" id="chip-openid">
+            <input type="checkbox" value="openid" checked onchange="toggleChip('chip-openid',this)"> openid
+          </label>
+          <label class="scope-chip checked" id="chip-email">
+            <input type="checkbox" value="email" checked onchange="toggleChip('chip-email',this)"> email
+          </label>
+          <label class="scope-chip" id="chip-profile">
+            <input type="checkbox" value="profile" onchange="toggleChip('chip-profile',this)"> profile
+          </label>
+        </div>
+      </div>
+
+      <div class="pkce-info">
+        <strong>PKCE (S256) — généré automatiquement</strong>
+        <div class="pkce-row">
+          <span class="pkce-key">code_verifier</span>
+          <span class="pkce-val" id="pkce-verifier">—</span>
+        </div>
+        <div class="pkce-row">
+          <span class="pkce-key">code_challenge</span>
+          <span class="pkce-val" id="pkce-challenge">—</span>
+        </div>
+        <div class="pkce-row" style="margin-top:8px">
+          <span class="pkce-key"></span>
+          <button class="btn btn-sm btn-ghost" onclick="generatePKCE()">Regénérer</button>
+        </div>
+      </div>
+
+      <button class="btn" style="margin-top:16px" id="flow-btn" onclick="startFlow()">Démarrer le flux →</button>
+      <div id="flow-msg"></div>
+    </div>
+
+    <!-- Token result -->
+    <div id="token-section" style="display:none">
+      <div class="card">
+        <div class="card-title">Tokens reçus <span class="badge">succès</span></div>
+
+        <div id="tok-access-wrap" style="display:none">
+          <div class="result-card">
+            <div class="result-row">
+              <span class="result-label">access_token</span>
+              <span class="result-value" id="tok-access"></span>
+              <button class="copy-btn" onclick="copyEl('tok-access',this)">Copier</button>
+            </div>
+            <div class="result-row">
+              <span class="result-label">expires_in</span>
+              <span class="result-value" id="tok-expires"></span>
+            </div>
+            <div class="result-row">
+              <span class="result-label">scope</span>
+              <span class="result-value" id="tok-scope"></span>
+            </div>
+          </div>
+        </div>
+
+        <div id="tok-id-wrap" style="display:none;margin-top:10px">
+          <div class="result-card">
+            <div class="result-row">
+              <span class="result-label">id_token</span>
+              <span class="result-value" id="tok-id"></span>
+              <button class="copy-btn" onclick="copyEl('tok-id',this)">Copier</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="tok-refresh-wrap" style="display:none;margin-top:10px">
+          <div class="result-card">
+            <div class="result-row">
+              <span class="result-label">refresh_token</span>
+              <span class="result-value" id="tok-refresh"></span>
+              <button class="copy-btn" onclick="copyEl('tok-refresh',this)">Copier</button>
+            </div>
+          </div>
+        </div>
+
+        <details style="margin-top:14px">
+          <summary style="font-size:12px;color:#475569;cursor:pointer;user-select:none">JSON brut</summary>
+          <pre id="tok-raw" style="margin-top:10px;padding:12px;background:#0f172a;
+            border:1px solid #334155;border-radius:8px;font-size:11px;color:#94a3b8;
+            overflow:auto;max-height:220px;white-space:pre-wrap;word-break:break-all"></pre>
+        </details>
+
+        <button class="btn" style="margin-top:16px;background:#1e293b;border:1px solid #334155;color:#94a3b8"
+          onclick="resetFlow()">Nouveau flux</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────
+var _verifier  = '';
+var _challenge = '';
+
+// ── Tabs ──────────────────────────────────────────────────
+function switchTab(t) {
+  ['register','flow'].forEach(function(n){
+    document.getElementById('tab-'+n).classList.toggle('active', n===t);
+    document.getElementById('panel-'+n).classList.toggle('active', n===t);
+  });
+}
+
+function toggleChip(id, cb) {
+  document.getElementById(id).classList.toggle('checked', cb.checked);
+}
+
+function getScopes() {
+  return Array.from(document.querySelectorAll('.scopes input:checked'))
+    .map(function(b){return b.value;});
+}
+
+// ── PKCE ─────────────────────────────────────────────────
+function rndB64url(n) {
+  var a = new Uint8Array(n);
+  crypto.getRandomValues(a);
+  return btoa(String.fromCharCode.apply(null,a))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function generatePKCE() {
+  _verifier  = rndB64url(48);
+  var buf    = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(_verifier));
+  _challenge = btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  document.getElementById('pkce-verifier').textContent  = _verifier;
+  document.getElementById('pkce-challenge').textContent = _challenge;
+}
+
+// ── Copy ─────────────────────────────────────────────────
+function copyEl(id, btn) {
+  navigator.clipboard.writeText(
+    document.getElementById(id).textContent.trim()
+  ).then(function(){
+    btn.textContent='Copié !'; btn.classList.add('copied');
+    setTimeout(function(){ btn.textContent='Copier'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+// ── Register ──────────────────────────────────────────────
+async function registerClient() {
+  var btn  = document.getElementById('reg-btn');
+  var name = document.getElementById('reg-name').value.trim();
+  var key  = document.getElementById('reg-key').value.trim();
+  var uris = document.getElementById('reg-uris').value.trim()
+    .split('\n').map(function(u){return u.trim();}).filter(Boolean);
+
+  setMsg('reg-msg','','');
+  document.getElementById('reg-result').style.display='none';
+
+  if (!name||!key||!uris.length) {
+    setMsg('reg-msg','Veuillez remplir tous les champs.','err'); return;
+  }
+
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Enregistrement...';
+  try {
+    var r = await fetch('/api/v1/admin/clients',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Admin-Key':key},
+      body:JSON.stringify({name,redirect_uris:uris,scopes:['openid','email','profile']})
+    });
+    var d = await r.json();
+    if (!r.ok){ setMsg('reg-msg', d.error||d.message||'Erreur '+r.status, 'err'); return; }
+    var c = d.data;
+    document.getElementById('res-client-id').textContent     = c.client_id;
+    document.getElementById('res-client-secret').textContent = c.client_secret;
+    document.getElementById('res-uris').textContent          = (c.redirect_uris||[]).join(', ');
+    document.getElementById('reg-result').style.display='block';
+  } catch(e) {
+    setMsg('reg-msg','Erreur réseau : '+e.message,'err');
+  } finally {
+    btn.disabled=false; btn.textContent='Enregistrer le client';
+  }
+}
+
+function prefillFlow() {
+  document.getElementById('flow-cid').value    = document.getElementById('res-client-id').textContent.trim();
+  document.getElementById('flow-secret').value = document.getElementById('res-client-secret').textContent.trim();
+  switchTab('flow');
+}
+
+// ── Start flow ────────────────────────────────────────────
+async function startFlow() {
+  var cid    = document.getElementById('flow-cid').value.trim();
+  var secret = document.getElementById('flow-secret').value.trim();
+  var scopes = getScopes();
+  setMsg('flow-msg','','');
+
+  if (!cid||!secret){ setMsg('flow-msg','client_id et client_secret requis.','err'); return; }
+  if (!scopes.length){ setMsg('flow-msg','Sélectionnez au moins un scope.','err'); return; }
+  if (!_verifier) await generatePKCE();
+
+  var state = rndB64url(16);
+  sessionStorage.setItem('pv', _verifier);
+  sessionStorage.setItem('cid', cid);
+  sessionStorage.setItem('cs', secret);
+  sessionStorage.setItem('st', state);
+
+  var redir = location.origin + '/oauth/playground';
+  window.location.href = '/oauth/authorize'
+    + '?response_type=code'
+    + '&client_id='           + encodeURIComponent(cid)
+    + '&redirect_uri='        + encodeURIComponent(redir)
+    + '&scope='               + encodeURIComponent(scopes.join(' '))
+    + '&state='               + encodeURIComponent(state)
+    + '&code_challenge='      + encodeURIComponent(_challenge)
+    + '&code_challenge_method=S256'
+    + '&nonce='               + rndB64url(16);
+}
+
+// ── Callback ─────────────────────────────────────────────
+async function handleCallback() {
+  var p    = new URLSearchParams(location.search);
+  var code = p.get('code');
+  var err  = p.get('error');
+
+  // Clean URL immediately
+  history.replaceState({}, '', location.pathname);
+
+  if (err) {
+    show('error-banner');
+    document.getElementById('error-banner-title').textContent = 'Erreur : ' + err;
+    document.getElementById('error-banner-msg').textContent   = p.get('error_description') || '';
+    switchTab('flow');
+    return;
+  }
+  if (!code) return;
+
+  show('callback-banner'); switchTab('flow');
+
+  var verifier = sessionStorage.getItem('pv');
+  var cid      = sessionStorage.getItem('cid');
+  var secret   = sessionStorage.getItem('cs');
+  var state    = sessionStorage.getItem('st');
+
+  if (cid)    document.getElementById('flow-cid').value    = cid;
+  if (secret) document.getElementById('flow-secret').value = secret;
+
+  if (!verifier||!cid||!secret) {
+    document.getElementById('callback-status').textContent =
+      'Données de session manquantes — relancez le flux depuis cet onglet.';
+    return;
+  }
+  if (state && p.get('state') !== state) {
+    document.getElementById('callback-status').textContent = 'state mismatch !';
+    return;
+  }
+
+  try {
+    var body = new URLSearchParams({
+      grant_type:'authorization_code', code,
+      redirect_uri: location.origin+'/oauth/playground',
+      client_id:cid, client_secret:secret, code_verifier:verifier
+    });
+    var r = await fetch('/oauth/token',{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:body.toString()
+    });
+    var d = await r.json();
+    hide('callback-banner');
+    if (!r.ok) {
+      show('error-banner');
+      document.getElementById('error-banner-title').textContent = 'Échange échoué';
+      document.getElementById('error-banner-msg').textContent   =
+        d.error_description || d.error || JSON.stringify(d);
+      return;
+    }
+    showTokens(d);
+    ['pv','cid','cs','st'].forEach(function(k){ sessionStorage.removeItem(k); });
+  } catch(e) {
+    document.getElementById('callback-status').textContent = 'Erreur réseau : '+e.message;
+  }
+}
+
+function showTokens(d) {
+  document.getElementById('token-section').style.display='block';
+  document.getElementById('tok-raw').textContent=JSON.stringify(d,null,2);
+  if (d.access_token) {
+    show('tok-access-wrap');
+    document.getElementById('tok-access').textContent  = d.access_token;
+    document.getElementById('tok-expires').textContent = (d.expires_in||'—')+'s';
+    document.getElementById('tok-scope').textContent   = d.scope||'—';
+  }
+  if (d.id_token)      { show('tok-id-wrap');      document.getElementById('tok-id').textContent      = d.id_token; }
+  if (d.refresh_token) { show('tok-refresh-wrap'); document.getElementById('tok-refresh').textContent = d.refresh_token; }
+}
+
+function resetFlow() {
+  ['token-section','tok-access-wrap','tok-id-wrap','tok-refresh-wrap'].forEach(hide);
+  document.getElementById('tok-raw').textContent='';
+  generatePKCE();
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function show(id){ document.getElementById(id).style.display='flex'; }
+function hide(id){ document.getElementById(id).style.display='none'; }
+function setMsg(id,msg,type){
+  document.getElementById(id).innerHTML = msg
+    ? '<div class="alert alert-'+type+'">'+esc(msg)+'</div>' : '';
+}
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Init ─────────────────────────────────────────────────
+(async function(){
+  await generatePKCE();
+  await handleCallback();
+})();
+</script>
+</body>
+</html>
