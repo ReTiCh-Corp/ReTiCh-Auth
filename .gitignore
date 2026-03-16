@@ -1,5 +1,7 @@
 # Environment variables (never commit real secrets)
 .env
+.env.local
+.env.*.local
 
 # macOS
 .DS_Store
@@ -7,6 +9,10 @@
 # Go build artifacts
 /bin/
 *.exe
+
+# Node.js
+node_modules/
+sdk/node_modules/
 
 # IDE
 .idea/
