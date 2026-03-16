@@ -1,17 +1,14 @@
 FROM golang:1.22-alpine
 
-# Install Air for hot-reload
-RUN go install github.com/air-verse/air@latest
+ENV GONOSUMDB=*
+ENV GOFLAGS=-mod=mod
+ENV CGO_ENABLED=0
+
+RUN apk add --no-cache git
 
 WORKDIR /app
 
-# Copy dependency files
-COPY go.mod go.sum* ./
-RUN go mod download
-
-# Copy Air config
-COPY .air.toml .
-
 EXPOSE 8081
 
-CMD ["air", "-c", ".air.toml"]
+# go run downloads deps automatically on first start (source mounted via volume)
+CMD ["go", "run", "./cmd/server/main.go"]

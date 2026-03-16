@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:#0f172a;color:#f1f5f9;min-height:100vh;
+    display:flex;align-items:center;justify-content:center}
+  .card{background:#1e293b;border:1px solid #334155;border-radius:16px;
+    padding:48px 40px;text-align:center;max-width:420px;width:90%;
+    box-shadow:0 25px 50px rgba(0,0,0,.4)}
+  .icon-wrap{width:80px;height:80px;border-radius:50%;margin:0 auto 24px;
+    display:flex;align-items:center;justify-content:center;font-size:36px;
+    background:{{.IconColor}}22;border:2px solid {{.IconColor}}}
+  .icon{color:{{.IconColor}};font-size:36px;line-height:1}
+  h1{font-size:22px;font-weight:700;margin-bottom:10px;color:#f8fafc}
+  p{font-size:14px;color:#94a3b8;line-height:1.6;margin-bottom:28px}
+  .timer-wrap{background:#0f172a;border-radius:10px;padding:16px 20px;
+    display:inline-flex;align-items:center;gap:10px;font-size:13px;color:#64748b}
+  .timer-wrap span{color:#f8fafc;font-weight:700;font-size:20px;min-width:24px;
+    display:inline-block;text-align:center}
+  .progress{width:100%;height:3px;background:#334155;border-radius:2px;
+    margin-top:24px;overflow:hidden}
+  .progress-bar{height:100%;background:{{.IconColor}};
+    animation:shrink 3s linear forwards}
+  @keyframes shrink{from{width:100%}to{width:0%}}
+  .btn{display:inline-block;margin-top:20px;padding:10px 24px;
+    background:{{.IconColor}}22;color:{{.IconColor}};border:1px solid {{.IconColor}}55;
+    border-radius:8px;font-size:13px;text-decoration:none;cursor:pointer}
+  .btn:hover{background:{{.IconColor}}33}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon-wrap"><span class="icon">{{.Icon}}</span></div>
+  <h1>{{.Title}}</h1>
+  <p>{{.Subtitle}}</p>
+  {{if .RedirectURL}}
+  <div class="timer-wrap">
+    Redirection dans <span id="n">3</span> seconde(s)
+  </div>
+  <div class="progress"><div class="progress-bar"></div></div>
+  <br>
+  <a class="btn" href="{{.RedirectURL}}">Rediriger maintenant</a>
+  {{end}}
+</div>
+{{if .RedirectURL}}
+<script>
+var n=3,el=document.getElementById('n');
+var t=setInterval(function(){
+  n--;el.textContent=n;
+  if(n<=0){clearInterval(t);window.location.href='{{.RedirectURL}}';}
+},1000);
+</script>
+{{end}}
+</body>
+</html>
