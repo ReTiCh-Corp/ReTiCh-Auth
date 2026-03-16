@@ -14,9 +14,11 @@ import (
 type Deps struct {
 	AuthHandler    *handlers.AuthHandler
 	ProfileHandler *handlers.ProfileHandler
+	OAuthHandler   *handlers.OAuthHandler
+	AdminHandler   *handlers.AdminHandler
 	JWTService     *tokenservice.JWTService
 	Redis          *redis.Client
-	AllowedOrigins string
+	OriginChecker  middleware.OriginChecker
 }
 
 func New(d Deps) http.Handler {
@@ -24,57 +26,82 @@ func New(d Deps) http.Handler {
 
 	// Global middleware
 	r.Use(middleware.Logger)
-	r.Use(middleware.CORS(d.AllowedOrigins))
+	r.Use(middleware.CORS(d.OriginChecker))
 
 	// Health endpoints (no auth, no rate limit)
 	r.HandleFunc("/health", healthHandler).Methods(http.MethodGet)
 	r.HandleFunc("/ready", readyHandler).Methods(http.MethodGet)
 
+	// Well-known endpoints
+	r.HandleFunc("/.well-known/jwks.json", d.AuthHandler.JWKS).Methods(http.MethodGet)
+	r.HandleFunc("/.well-known/openid-configuration", d.OAuthHandler.Discovery).Methods(http.MethodGet)
+
+	// --- OAuth 2.0 / OIDC routes ---
+	oauth := r.PathPrefix("/oauth").Subrouter()
+
+	// Authorization endpoint (browser flow)
+	oauth.HandleFunc("/authorize", d.OAuthHandler.Authorize).Methods(http.MethodGet)
+	oauth.HandleFunc("/authorize", d.OAuthHandler.HandleConsent).Methods(http.MethodPost)
+
+	// Login form for OAuth flow
+	oauth.Handle("/login",
+		middleware.RateLimit(d.Redis, "oauth-login", 10, time.Minute)(
+			http.HandlerFunc(d.OAuthHandler.LoginForm),
+		),
+	).Methods(http.MethodGet)
+	oauth.Handle("/login",
+		middleware.RateLimit(d.Redis, "oauth-login", 10, time.Minute)(
+			http.HandlerFunc(d.OAuthHandler.LoginSubmit),
+		),
+	).Methods(http.MethodPost)
+
+	// Token endpoint (machine-to-machine)
+	oauth.HandleFunc("/token", d.OAuthHandler.Token).Methods(http.MethodPost)
+
+	// Registration during OAuth flow
+	oauth.HandleFunc("/register", d.OAuthHandler.RegisterForm).Methods(http.MethodGet)
+	oauth.HandleFunc("/register", d.OAuthHandler.RegisterSubmit).Methods(http.MethodPost)
+
+	// Forgot password during OAuth flow
+	oauth.Handle("/forgot-password",
+		middleware.RateLimit(d.Redis, "forgot-password", 3, time.Minute)(
+			http.HandlerFunc(d.OAuthHandler.ForgotPasswordForm),
+		),
+	).Methods(http.MethodGet)
+	oauth.Handle("/forgot-password",
+		middleware.RateLimit(d.Redis, "forgot-password", 3, time.Minute)(
+			http.HandlerFunc(d.OAuthHandler.ForgotPasswordSubmit),
+		),
+	).Methods(http.MethodPost)
+
+	// Interactive test playground (dev)
+	oauth.HandleFunc("/playground", d.OAuthHandler.Playground).Methods(http.MethodGet)
+
+	// UserInfo endpoint (protected by JWT)
+	jwtMiddleware := middleware.JWTAuth(d.JWTService, d.Redis, "")
+	oauthProtected := r.PathPrefix("/oauth").Subrouter()
+	oauthProtected.Use(jwtMiddleware)
+	oauthProtected.HandleFunc("/userinfo", d.OAuthHandler.UserInfo).Methods(http.MethodGet)
+
 	api := r.PathPrefix("/api/v1").Subrouter()
 
-	// --- Public auth routes ---
+	// --- Admin routes ---
+	admin := api.PathPrefix("/admin").Subrouter()
+	admin.HandleFunc("/clients", d.AdminHandler.RegisterClient).Methods(http.MethodPost)
+	admin.HandleFunc("/clients", d.AdminHandler.ListClients).Methods(http.MethodGet)
+	admin.HandleFunc("/clients/{id}", d.AdminHandler.GetClient).Methods(http.MethodGet)
+	admin.HandleFunc("/clients/{id}", d.AdminHandler.UpdateClient).Methods(http.MethodPatch)
+	admin.HandleFunc("/clients/{id}", d.AdminHandler.DeleteClient).Methods(http.MethodDelete)
+	admin.HandleFunc("/clients/{id}/activate", d.AdminHandler.ActivateClient).Methods(http.MethodPost)
+
+	// --- Auth callback routes (used in email links) ---
 	auth := api.PathPrefix("/auth").Subrouter()
 
-	auth.Handle("/register",
-		middleware.RateLimit(d.Redis, "register", 5, time.Minute)(
-			http.HandlerFunc(d.AuthHandler.Register),
-		),
-	).Methods(http.MethodPost)
-
-	auth.Handle("/login",
-		middleware.RateLimit(d.Redis, "login", 10, time.Minute)(
-			http.HandlerFunc(d.AuthHandler.Login),
-		),
-	).Methods(http.MethodPost)
-
-	auth.HandleFunc("/refresh", d.AuthHandler.Refresh).Methods(http.MethodPost)
 	auth.HandleFunc("/verify-email", d.AuthHandler.VerifyEmail).Methods(http.MethodGet)
-
-	auth.Handle("/resend-verification",
-		middleware.RateLimit(d.Redis, "resend-verification", 3, time.Minute)(
-			http.HandlerFunc(d.AuthHandler.ResendVerification),
-		),
-	).Methods(http.MethodPost)
-
-	auth.Handle("/forgot-password",
-		middleware.RateLimit(d.Redis, "forgot-password", 3, time.Minute)(
-			http.HandlerFunc(d.AuthHandler.ForgotPassword),
-		),
-	).Methods(http.MethodPost)
-
 	auth.HandleFunc("/reset-password", d.AuthHandler.ResetPasswordForm).Methods(http.MethodGet)
 	auth.HandleFunc("/reset-password", d.AuthHandler.ResetPassword).Methods(http.MethodPost)
 
-	auth.Handle("/magic-link",
-		middleware.RateLimit(d.Redis, "magic-link", 3, time.Minute)(
-			http.HandlerFunc(d.AuthHandler.RequestMagicLink),
-		),
-	).Methods(http.MethodPost)
-	auth.HandleFunc("/magic-link/verify", d.AuthHandler.VerifyMagicLink).Methods(http.MethodGet)
-
 	// --- Protected auth routes (JWT required) ---
-	jwtMiddleware := middleware.JWTAuth(d.JWTService, d.Redis)
-
 	protected := api.PathPrefix("/auth").Subrouter()
 	protected.Use(jwtMiddleware)
 

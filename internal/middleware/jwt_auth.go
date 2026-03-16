@@ -19,7 +19,10 @@ const (
 	ContextKeyEmail  contextKey = "email"
 )
 
-func JWTAuth(jwtSvc *tokenservice.JWTService, rdb *redis.Client) func(http.Handler) http.Handler {
+// JWTAuth validates the Bearer JWT and optionally checks the audience.
+// Pass a non-empty audience to restrict the route to tokens issued for a specific client.
+// Pass "" to accept tokens from any client (e.g. internal auth routes).
+func JWTAuth(jwtSvc *tokenservice.JWTService, rdb *redis.Client, audience string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -34,6 +37,21 @@ func JWTAuth(jwtSvc *tokenservice.JWTService, rdb *redis.Client) func(http.Handl
 			if err != nil {
 				response.Error(w, http.StatusUnauthorized, "invalid or expired token")
 				return
+			}
+
+			// Check audience if required
+			if audience != "" {
+				found := false
+				for _, aud := range claims.Audience {
+					if aud == audience {
+						found = true
+						break
+					}
+				}
+				if !found {
+					response.Error(w, http.StatusUnauthorized, "token audience mismatch")
+					return
+				}
 			}
 
 			// Check blacklist
