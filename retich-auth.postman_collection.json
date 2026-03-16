@@ -1,0 +1,257 @@
+{
+  "info": {
+    "name": "ReTiCh Auth",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8081" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          }
+        },
+        {
+          "name": "Ready Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/ready"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"victanart@gmail.com\",\n  \"password\": \"V1ctanart-2025!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data) {",
+                  "  pm.collectionVariables.set('access_token', res.data.access_token);",
+                  "  pm.collectionVariables.set('refresh_token', res.data.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"victanart@gmail.com\",\n  \"password\": \"V1ctanart-2025!\",\n  \"audience\": \"app-shop\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify Email (API — JSON response)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/verify-email?token=PASTE_TOKEN_FROM_EMAIL",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "verify-email"],
+              "query": [
+                { "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Email (with redirect → 302)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/verify-email?token=PASTE_TOKEN_FROM_EMAIL&redirect=http%3A%2F%2Flocalhost%3A3000",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "verify-email"],
+              "query": [
+                { "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" },
+                { "key": "redirect", "value": "http://localhost:3000" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Resend Verification",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/resend-verification",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"victanart@gmail.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data) {",
+                  "  pm.collectionVariables.set('access_token', res.data.access_token);",
+                  "  pm.collectionVariables.set('refresh_token', res.data.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/refresh",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\",\n  \"audience\": \"app-shop\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/forgot-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"victanart@gmail.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/reset-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_TOKEN_FROM_EMAIL\",\n  \"password\": \"NewV1ctanart-2025!\",\n  \"password_confirm\": \"NewV1ctanart-2025!\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Magic Link (passwordless)",
+      "item": [
+        {
+          "name": "Request Magic Link",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/magic-link",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"victanart@gmail.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify Magic Link (JSON)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data) {",
+                  "  pm.collectionVariables.set('access_token', res.data.access_token);",
+                  "  pm.collectionVariables.set('refresh_token', res.data.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/magic-link/verify?token=PASTE_TOKEN_FROM_EMAIL",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "magic-link", "verify"],
+              "query": [
+                { "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" }
+              ]
+            },
+            "header": [{ "key": "Accept", "value": "application/json" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Protected",
+      "item": [
+        {
+          "name": "Me (profil)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/auth/me",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/logout",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout All",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/logout-all",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
