@@ -1,0 +1,13 @@
+# Environment variables (never commit real secrets)
+.env
+
+# macOS
+.DS_Store
+
+# Go build artifacts
+/bin/
+*.exe
+
+# IDE
+.idea/
+.vscode/
