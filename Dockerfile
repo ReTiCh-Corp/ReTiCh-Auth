@@ -21,9 +21,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # Production stage
 FROM gcr.io/distroless/static-debian12
 
-# Copy binary and certificates
+# Copy binary, certificates and migrations
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /server /server
+COPY --from=builder /app/migrations /migrations
 
 # Non-root user (distroless uses nonroot by default)
 USER nonroot:nonroot
