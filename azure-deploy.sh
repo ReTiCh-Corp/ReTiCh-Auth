@@ -7,6 +7,17 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
+# Charger les variables depuis .env.prod si présent
+# ---------------------------------------------------------------------------
+if [ -f ".env.prod" ]; then
+  echo "==> Chargement de .env.prod"
+  set -o allexport
+  # shellcheck disable=SC1091
+  source .env.prod
+  set +o allexport
+fi
+
+# ---------------------------------------------------------------------------
 # CONFIGURATION — modifier ces valeurs avant de lancer
 # ---------------------------------------------------------------------------
 RESOURCE_GROUP="rg-retich-auth"
@@ -71,19 +82,43 @@ az acr build \
 # ---------------------------------------------------------------------------
 echo "==> 3. PostgreSQL Flexible Server"
 # ---------------------------------------------------------------------------
-az postgres flexible-server create \
+POSTGRES_EXISTS=$(az postgres flexible-server show \
   --name "$POSTGRES_SERVER" \
   --resource-group "$RESOURCE_GROUP" \
-  --location "$LOCATION" \
+  --query state -o tsv 2>/dev/null || echo "")
+
+if [ -z "$POSTGRES_EXISTS" ]; then
+  az postgres flexible-server create \
+    --name "$POSTGRES_SERVER" \
+    --resource-group "$RESOURCE_GROUP" \
+    --location "$LOCATION" \
+    --admin-user "$POSTGRES_USER" \
+    --admin-password "$POSTGRES_PASSWORD" \
+    --sku-name Standard_B1ms \
+    --tier Burstable \
+    --storage-size 32 \
+    --version 16 \
+    --public-access 0.0.0.0 \
+    --output none
+else
+  echo "    Serveur PostgreSQL déjà existant, ignoré."
+fi
+
+DB_EXISTS=$(az postgres flexible-server db show \
+  --server-name "$POSTGRES_SERVER" \
+  --resource-group "$RESOURCE_GROUP" \
   --database-name "$POSTGRES_DB" \
-  --admin-user "$POSTGRES_USER" \
-  --admin-password "$POSTGRES_PASSWORD" \
-  --sku-name Standard_B1ms \
-  --tier Burstable \
-  --storage-size 32 \
-  --version 16 \
-  --public-access 0.0.0.0 \
-  --output none
+  --query name -o tsv 2>/dev/null || echo "")
+
+if [ -z "$DB_EXISTS" ]; then
+  az postgres flexible-server db create \
+    --server-name "$POSTGRES_SERVER" \
+    --resource-group "$RESOURCE_GROUP" \
+    --database-name "$POSTGRES_DB" \
+    --output none
+else
+  echo "    Base de données '${POSTGRES_DB}' déjà existante, ignorée."
+fi
 
 POSTGRES_HOST="${POSTGRES_SERVER}.postgres.database.azure.com"
 DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}/${POSTGRES_DB}?sslmode=require"

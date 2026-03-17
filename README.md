@@ -38,19 +38,11 @@ Les migrations sont appliquées automatiquement au démarrage.
 **Prérequis :** Azure CLI (`az login`)
 
 ```bash
-# Exporter les secrets
-export POSTGRES_PASSWORD="..."
-export RSA_PRIVATE_KEY="$(openssl genrsa 2048 | awk 'NF {sub(/\r/,""); printf "%s\\n",$0}')"
-export ADMIN_API_KEY="$(openssl rand -hex 32)"
-export RESEND_API_KEY="re_..."
-export SESSION_SECRET="$(openssl rand -base64 32)"
-export APP_URL="https://ton-domaine.com"
-export ALLOWED_ORIGINS="https://ton-frontend.com"
-export ALLOWED_REDIRECT_URLS="https://ton-frontend.com/callback"
-export RESEND_FROM_EMAIL="noreply@tondomaine.com"
-
-./azure-deploy.sh
+cp .env.prod.example .env.prod   # remplir les valeurs
+./azure-deploy.sh                # charge .env.prod automatiquement
 ```
+
+Le script lit `.env.prod` au démarrage — pas besoin d'exporter manuellement.
 
 Ressources créées : Azure Container Apps, PostgreSQL Flexible Server, Azure Cache for Redis, Container Registry.
 
