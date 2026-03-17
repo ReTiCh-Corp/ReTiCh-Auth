@@ -15,13 +15,11 @@ Service d'authentification OAuth 2.0 / OIDC auto-hébergé. Fonctionne comme "Se
 
 ---
 
-## Prérequis
+## Déploiement
 
-- Docker + Docker Compose
+### Local (Docker)
 
----
-
-## Démarrage rapide
+**Prérequis :** Docker + Docker Compose
 
 ```bash
 cp .env.example .env   # ajuster les variables si besoin
@@ -34,6 +32,33 @@ curl http://localhost:8081/health   # {"status":"ok"}
 - Redis : port `6379`
 
 Les migrations sont appliquées automatiquement au démarrage.
+
+### Azure (production)
+
+**Prérequis :** Azure CLI (`az login`)
+
+```bash
+# Exporter les secrets
+export POSTGRES_PASSWORD="..."
+export RSA_PRIVATE_KEY="$(openssl genrsa 2048 | awk 'NF {sub(/\r/,""); printf "%s\\n",$0}')"
+export ADMIN_API_KEY="$(openssl rand -hex 32)"
+export RESEND_API_KEY="re_..."
+export SESSION_SECRET="$(openssl rand -base64 32)"
+export APP_URL="https://ton-domaine.com"
+export ALLOWED_ORIGINS="https://ton-frontend.com"
+export ALLOWED_REDIRECT_URLS="https://ton-frontend.com/callback"
+export RESEND_FROM_EMAIL="noreply@tondomaine.com"
+
+./azure-deploy.sh
+```
+
+Ressources créées : Azure Container Apps, PostgreSQL Flexible Server, Azure Cache for Redis, Container Registry.
+
+> **Note Azure :** Les extensions PostgreSQL `uuid-ossp` et `pgcrypto` sont activées automatiquement. Le domaine Resend doit être vérifié sur [resend.com/domains](https://resend.com/domains).
+
+**Production URL :** affiché à la fin du script.
+
+**Console admin :** projet `retich-console` (Next.js) — configurer `RETICH_AUTH_URL` et `ADMIN_API_KEY`.
 
 ---
 
@@ -49,11 +74,15 @@ Copier `.env.example` → `.env` :
 | `RSA_PRIVATE_KEY` | Clé privée RSA PEM (RS256). Vide en dev → clé éphémère générée |
 | `JWT_EXPIRATION` | Durée de vie access token (défaut `15m`) |
 | `REFRESH_TOKEN_EXPIRATION` | Durée de vie refresh token (défaut `168h`) |
-| `APP_URL` | URL publique du service (`http://localhost:8081`) |
+| `APP_URL` | URL publique du service — utilisé comme `iss` dans les JWT |
 | `ADMIN_API_KEY` | Clé secrète pour l'API admin (`X-Admin-Key`) |
 | `SESSION_SECRET` | Secret HMAC pour les cookies de session (min 32 chars) |
-| `ALLOWED_ORIGINS` | CORS — origines autorisées |
+| `ALLOWED_ORIGINS` | CORS — origines autorisées (séparées par virgule) |
+| `ALLOWED_REDIRECT_URLS` | URLs autorisées pour les liens email (vérification, reset) |
 | `RESEND_API_KEY` | Clé API Resend (envoi d'emails) |
+| `RESEND_FROM_EMAIL` | Expéditeur des emails (domaine doit être vérifié sur Resend) |
+| `RESEND_FROM_NAME` | Nom affiché dans les emails |
+| `REQUIRE_EMAIL_VERIFICATION` | `true` = connexion bloquée tant que l'email n'est pas vérifié |
 
 ---
 
@@ -160,8 +189,8 @@ La `redirect_uri` NextAuth à enregistrer : `{NEXTAUTH_URL}/api/auth/callback/re
 
 | Migration | Contenu |
 |-----------|---------|
-| `000001` | Table `users` |
-| `000002` | Table `refresh_tokens` |
+| `000001` | Tables `users`, `refresh_tokens`, `verification_tokens`, `sessions` |
+| `000002` | Colonne `ip_address` en TEXT |
 | `000003` | Table `oauth_clients` |
 | `000004` | Table `authorization_codes` |
 | `000005` | Table `oauth_consents` |
