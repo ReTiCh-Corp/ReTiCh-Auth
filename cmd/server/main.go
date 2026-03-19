@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/retich-corp/auth/internal/cache"
 	"github.com/retich-corp/auth/internal/config"
 	"github.com/retich-corp/auth/internal/database"
 	"github.com/retich-corp/auth/internal/handlers"
 	"github.com/retich-corp/auth/internal/middleware"
-	redisclient "github.com/retich-corp/auth/internal/redis"
 	"github.com/retich-corp/auth/internal/repository"
 	"github.com/retich-corp/auth/internal/router"
 	authservice "github.com/retich-corp/auth/internal/service/auth"
@@ -42,12 +42,8 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Connect to Redis
-	rdb, err := redisclient.NewClient(cfg.RedisURL)
-	if err != nil {
-		log.Fatalf("redis error: %v", err)
-	}
-	defer rdb.Close()
+	// In-memory cache (replaces Redis)
+	appCache := cache.New()
 
 	// Repositories
 	userRepo := repository.NewUserRepository(pool)
@@ -66,11 +62,11 @@ func main() {
 		log.Fatalf("email service error: %v", err)
 	}
 
-	authSvc := authservice.NewService(cfg, userRepo, tokenRepo, sessionRepo, jwtSvc, emailSvc, rdb)
+	authSvc := authservice.NewService(cfg, userRepo, tokenRepo, sessionRepo, jwtSvc, emailSvc, appCache)
 
 	sessionService := sessionsvc.NewService(cfg.SessionSecret, cfg.SessionExpiry, cfg.Environment == "production")
 
-	oauthSvc := oauthservice.NewService(cfg, oauthRepo, userRepo, tokenRepo, jwtSvc, sessionService, rdb)
+	oauthSvc := oauthservice.NewService(cfg, oauthRepo, userRepo, tokenRepo, jwtSvc, sessionService, appCache)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authSvc, jwtSvc)
@@ -92,7 +88,7 @@ func main() {
 		OAuthHandler:   oauthHandler,
 		AdminHandler:   adminHandler,
 		JWTService:     jwtSvc,
-		Redis:          rdb,
+		Cache:          appCache,
 		OriginChecker:  originChecker,
 	})
 

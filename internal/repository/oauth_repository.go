@@ -225,6 +225,41 @@ func (r *OAuthRepository) UpsertConsent(ctx context.Context, userID uuid.UUID, c
 	return err
 }
 
+// ClientUser is a user who has granted consent to an OAuth client.
+type ClientUser struct {
+	ID         uuid.UUID  `json:"id"`
+	Email      string     `json:"email"`
+	IsVerified bool       `json:"is_verified"`
+	IsActive   bool       `json:"is_active"`
+	Scopes     []string   `json:"scopes"`
+	GrantedAt  time.Time  `json:"granted_at"`
+	LastLogin  *time.Time `json:"last_login_at"`
+}
+
+// ListUsersByClientID returns all users who have an active consent for the given client_id.
+func (r *OAuthRepository) ListUsersByClientID(ctx context.Context, clientID string) ([]*ClientUser, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT u.id, u.email, u.is_verified, u.is_active, c.scopes, c.granted_at, u.last_login_at
+		FROM oauth_consents c
+		JOIN users u ON u.id = c.user_id
+		WHERE c.client_id = $1 AND c.revoked_at IS NULL
+		ORDER BY c.granted_at DESC`, clientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*ClientUser
+	for rows.Next() {
+		u := &ClientUser{}
+		if err := rows.Scan(&u.ID, &u.Email, &u.IsVerified, &u.IsActive, &u.Scopes, &u.GrantedAt, &u.LastLogin); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // SaveOAuthRefreshToken stores an OAuth refresh token (reuses the existing refresh_tokens table).
 func (r *OAuthRepository) SaveOAuthRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time, clientID string) error {
 	_, err := r.pool.Exec(ctx, `

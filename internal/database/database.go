@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -26,7 +25,7 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 }
 
 func RunMigrations(databaseURL string) error {
-	m, err := migrate.New("file:///migrations", databaseURL)
+	m, err := migrate.New("file://migrations", databaseURL)
 	if err != nil {
 		return fmt.Errorf("migration init error: %w", err)
 	}
@@ -41,22 +40,7 @@ func RunMigrations(databaseURL string) error {
 	}()
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		// Handle dirty database by forcing the current version and retrying
-		if strings.Contains(err.Error(), "Dirty database version") {
-			version, _, vErr := m.Version()
-			if vErr != nil {
-				return fmt.Errorf("migration version error: %w", vErr)
-			}
-			log.Printf("dirty database at version %d, forcing and retrying", version)
-			if forceErr := m.Force(int(version)); forceErr != nil {
-				return fmt.Errorf("migration force error: %w", forceErr)
-			}
-			if retryErr := m.Up(); retryErr != nil && retryErr != migrate.ErrNoChange {
-				return fmt.Errorf("migration error after force: %w", retryErr)
-			}
-		} else {
-			return fmt.Errorf("migration error: %w", err)
-		}
+		return fmt.Errorf("migration error: %w", err)
 	}
 
 	log.Println("database migrations applied successfully")

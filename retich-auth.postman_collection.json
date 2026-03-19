@@ -4,9 +4,17 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url", "value": "http://localhost:8081" },
+    { "key": "base_url", "value": "https://retich-auth.ashyplant-a8bd2417.francecentral.azurecontainerapps.io" },
     { "key": "access_token", "value": "" },
-    { "key": "refresh_token", "value": "" }
+    { "key": "refresh_token", "value": "" },
+    { "key": "admin_key", "value": "retich-admin-9ad15a32762c4f0a560de5025fc1ced4" },
+    { "key": "client_id", "value": "54a3afb1-6627-48b7-b4b6-d6dc3d170a57" },
+    { "key": "client_secret", "value": "fad8beaf-5158-4dfc-b786-aa917c5eee26" },
+    { "key": "code_verifier", "value": "" },
+    { "key": "code_challenge", "value": "" },
+    { "key": "oauth_code", "value": "" },
+    { "key": "pending_key", "value": "" },
+    { "key": "audience", "value": "mon-app" }
   ],
   "item": [
     {
@@ -29,22 +37,42 @@
       ]
     },
     {
-      "name": "Auth",
+      "name": "OIDC / Well-Known",
       "item": [
         {
-          "name": "Register",
+          "name": "JWKS (public keys)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/.well-known/jwks.json"
+          }
+        },
+        {
+          "name": "OpenID Configuration",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/.well-known/openid-configuration"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth API (direct)",
+      "item": [
+        {
+          "name": "1. Register",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/api/v1/auth/register",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"victanart@gmail.com\",\n  \"password\": \"V1ctanart-2025!\"\n}"
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"MyStr0ngP@ss!\",\n  \"redirect_url\": \"http://localhost:3000\"\n}"
             }
-          }
+          },
+          "description": "Create a new account. A verification email is sent automatically."
         },
         {
-          "name": "Login",
+          "name": "2. Login",
           "event": [
             {
               "listen": "test",
@@ -65,53 +93,13 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"victanart@gmail.com\",\n  \"password\": \"V1ctanart-2025!\",\n  \"audience\": \"app-shop\"\n}"
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"MyStr0ngP@ss!\",\n  \"audience\": \"{{audience}}\"\n}"
             }
-          }
+          },
+          "description": "Login and get tokens. audience is REQUIRED — it identifies which app the token is for."
         },
         {
-          "name": "Verify Email (API — JSON response)",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/api/v1/auth/verify-email?token=PASTE_TOKEN_FROM_EMAIL",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "verify-email"],
-              "query": [
-                { "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Verify Email (with redirect → 302)",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/api/v1/auth/verify-email?token=PASTE_TOKEN_FROM_EMAIL&redirect=http%3A%2F%2Flocalhost%3A3000",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "verify-email"],
-              "query": [
-                { "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" },
-                { "key": "redirect", "value": "http://localhost:3000" }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Resend Verification",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/api/v1/auth/resend-verification",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"victanart@gmail.com\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Refresh Token",
+          "name": "3. Refresh Token",
           "event": [
             {
               "listen": "test",
@@ -132,9 +120,10 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\",\n  \"audience\": \"app-shop\"\n}"
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\",\n  \"audience\": \"{{audience}}\"\n}"
             }
-          }
+          },
+          "description": "Rotate refresh token and get a new access token. audience is REQUIRED."
         },
         {
           "name": "Forgot Password",
@@ -144,27 +133,24 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"victanart@gmail.com\"\n}"
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"redirect_url\": \"http://localhost:3000\"\n}"
             }
-          }
+          },
+          "description": "Send a password reset email. Always returns 200 (anti-enumeration)."
         },
         {
-          "name": "Reset Password",
+          "name": "Resend Verification",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/api/v1/auth/reset-password",
+            "url": "{{base_url}}/api/v1/auth/resend-verification",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"PASTE_TOKEN_FROM_EMAIL\",\n  \"password\": \"NewV1ctanart-2025!\",\n  \"password_confirm\": \"NewV1ctanart-2025!\"\n}"
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"redirect_url\": \"http://localhost:3000\"\n}"
             }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Magic Link (passwordless)",
-      "item": [
+          },
+          "description": "Resend the email verification link."
+        },
         {
           "name": "Request Magic Link",
           "request": {
@@ -173,9 +159,10 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"victanart@gmail.com\"\n}"
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"audience\": \"{{audience}}\",\n  \"redirect_url\": \"http://localhost:3000\"\n}"
             }
-          }
+          },
+          "description": "Send a one-time login link by email. Always returns 200 (anti-enumeration)."
         },
         {
           "name": "Verify Magic Link (JSON)",
@@ -204,12 +191,426 @@
               ]
             },
             "header": [{ "key": "Accept", "value": "application/json" }]
+          },
+          "description": "Validate a magic link token and get tokens back. Use Accept: application/json for Postman."
+        }
+      ]
+    },
+    {
+      "name": "Auth (email links)",
+      "item": [
+        {
+          "name": "Verify Email (JSON)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/verify-email?token=PASTE_TOKEN_FROM_EMAIL",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "verify-email"],
+              "query": [
+                { "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" }
+              ]
+            },
+            "header": [{ "key": "Accept", "value": "application/json" }]
+          }
+        },
+        {
+          "name": "Verify Email (with redirect)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/verify-email?token=PASTE_TOKEN_FROM_EMAIL&redirect=http%3A%2F%2Flocalhost%3A3000",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "verify-email"],
+              "query": [
+                { "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" },
+                { "key": "redirect", "value": "http://localhost:3000" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Password (GET form)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-password?token=PASTE_TOKEN_FROM_EMAIL",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "reset-password"],
+              "query": [
+                { "key": "token", "value": "PASTE_TOKEN_FROM_EMAIL" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Password (POST submit)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/reset-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_TOKEN_FROM_EMAIL\",\n  \"password\": \"NewStr0ngP@ss!\",\n  \"password_confirm\": \"NewStr0ngP@ss!\"\n}"
+            }
           }
         }
       ]
     },
     {
-      "name": "Protected",
+      "name": "Admin (OAuth Clients)",
+      "item": [
+        {
+          "name": "Create Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data) {",
+                  "  pm.collectionVariables.set('client_id', res.data.client_id);",
+                  "  pm.collectionVariables.set('client_secret', res.data.client_secret);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/admin/clients",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Admin-Key", "value": "{{admin_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mon App\",\n  \"redirect_uris\": [\"http://localhost:5173/callback\"],\n  \"scopes\": [\"openid\", \"email\", \"profile\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "List Clients",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/admin/clients",
+            "header": [
+              { "key": "X-Admin-Key", "value": "{{admin_key}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get Client",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/admin/clients/{{client_id}}",
+            "header": [
+              { "key": "X-Admin-Key", "value": "{{admin_key}}" }
+            ]
+          }
+        },
+        {
+          "name": "Update Client",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/api/v1/admin/clients/{{client_id}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Admin-Key", "value": "{{admin_key}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mon App Updated\",\n  \"redirect_uris\": [\"http://localhost:5173/callback\", \"https://monapp.com/callback\"],\n  \"scopes\": [\"openid\", \"email\", \"profile\"],\n  \"is_active\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Client",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/admin/clients/{{client_id}}",
+            "header": [
+              { "key": "X-Admin-Key", "value": "{{admin_key}}" }
+            ]
+          }
+        },
+        {
+          "name": "Activate Client",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/admin/clients/{{client_id}}/activate",
+            "header": [
+              { "key": "X-Admin-Key", "value": "{{admin_key}}" }
+            ]
+          }
+        },
+        {
+          "name": "List Client Users",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/admin/clients/{{client_id}}/users",
+            "header": [
+              { "key": "X-Admin-Key", "value": "{{admin_key}}" }
+            ]
+          },
+          "description": "List all users who have granted consent to this OAuth client."
+        }
+      ]
+    },
+    {
+      "name": "OAuth 2.0 (PKCE)",
+      "item": [
+        {
+          "name": "1. Authorize (capture pending_key)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Generate PKCE code_verifier",
+                  "const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';",
+                  "let verifier = '';",
+                  "for (let i = 0; i < 43; i++) {",
+                  "  verifier += chars.charAt(Math.floor(Math.random() * chars.length));",
+                  "}",
+                  "pm.collectionVariables.set('code_verifier', verifier);",
+                  "",
+                  "// Generate code_challenge = base64url(sha256(verifier))",
+                  "const encoder = new TextEncoder();",
+                  "const data = encoder.encode(verifier);",
+                  "crypto.subtle.digest('SHA-256', data).then(hash => {",
+                  "  const bytes = new Uint8Array(hash);",
+                  "  let binary = '';",
+                  "  bytes.forEach(b => binary += String.fromCharCode(b));",
+                  "  const challenge = btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                  "  pm.collectionVariables.set('code_challenge', challenge);",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Extract pending_key from redirect Location header",
+                  "const location = pm.response.headers.get('Location') || '';",
+                  "const match = location.match(/return_to=([^&]+)/);",
+                  "if (match) {",
+                  "  pm.collectionVariables.set('pending_key', decodeURIComponent(match[1]));",
+                  "  console.log('pending_key saved:', match[1]);",
+                  "}",
+                  "",
+                  "// Also try to extract app name",
+                  "const appMatch = location.match(/app=([^&]+)/);",
+                  "if (appMatch) {",
+                  "  console.log('app:', decodeURIComponent(appMatch[1]));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/oauth/authorize?client_id={{client_id}}&redirect_uri=http://localhost:5173/callback&response_type=code&state=random123&code_challenge={{code_challenge}}&code_challenge_method=S256&scope=openid email profile",
+              "host": ["{{base_url}}"],
+              "path": ["oauth", "authorize"],
+              "query": [
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "redirect_uri", "value": "http://localhost:5173/callback" },
+                { "key": "response_type", "value": "code" },
+                { "key": "state", "value": "random123" },
+                { "key": "code_challenge", "value": "{{code_challenge}}" },
+                { "key": "code_challenge_method", "value": "S256" },
+                { "key": "scope", "value": "openid email profile" }
+              ]
+            },
+            "description": "Sends authorize request WITHOUT following redirects. The test script captures pending_key from the Location header automatically."
+          }
+        },
+        {
+          "name": "2. Login (uses pending_key auto)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// After login, server redirects to /oauth/authorize with the code",
+                  "// If redirect goes to redirect_uri, capture the code",
+                  "const location = pm.response.headers.get('Location') || '';",
+                  "const codeMatch = location.match(/code=([^&]+)/);",
+                  "if (codeMatch) {",
+                  "  pm.collectionVariables.set('oauth_code', decodeURIComponent(codeMatch[1]));",
+                  "  console.log('oauth_code saved:', codeMatch[1]);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/oauth/login",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "user@example.com" },
+                { "key": "password", "value": "MyStr0ngP@ss!" },
+                { "key": "return_to", "value": "{{pending_key}}" },
+                { "key": "app", "value": "Mon App" }
+              ]
+            },
+            "description": "Uses {{pending_key}} captured from step 1 automatically."
+          }
+        },
+        {
+          "name": "2b. Register (uses pending_key auto)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const location = pm.response.headers.get('Location') || '';",
+                  "const codeMatch = location.match(/code=([^&]+)/);",
+                  "if (codeMatch) {",
+                  "  pm.collectionVariables.set('oauth_code', decodeURIComponent(codeMatch[1]));",
+                  "  console.log('oauth_code saved:', codeMatch[1]);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          },
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/oauth/register",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "newuser@example.com" },
+                { "key": "password", "value": "MyStr0ngP@ss!" },
+                { "key": "confirm", "value": "MyStr0ngP@ss!" },
+                { "key": "return_to", "value": "{{pending_key}}" },
+                { "key": "app", "value": "Mon App" }
+              ]
+            },
+            "description": "Register new user during OAuth flow. Uses {{pending_key}} from step 1."
+          }
+        },
+        {
+          "name": "3. Exchange Code for Tokens",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('access_token', res.access_token);",
+                  "}",
+                  "if (res.refresh_token) {",
+                  "  pm.collectionVariables.set('refresh_token', res.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/oauth/token",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "authorization_code" },
+                { "key": "code", "value": "{{oauth_code}}" },
+                { "key": "redirect_uri", "value": "http://localhost:5173/callback" },
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "client_secret", "value": "{{client_secret}}" },
+                { "key": "code_verifier", "value": "{{code_verifier}}" }
+              ]
+            },
+            "description": "Uses {{oauth_code}} captured from step 2 and {{code_verifier}} from step 1."
+          }
+        },
+        {
+          "name": "4. Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.access_token) {",
+                  "  pm.collectionVariables.set('access_token', res.access_token);",
+                  "}",
+                  "if (res.refresh_token) {",
+                  "  pm.collectionVariables.set('refresh_token', res.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/oauth/token",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "refresh_token" },
+                { "key": "refresh_token", "value": "{{refresh_token}}" },
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "client_secret", "value": "{{client_secret}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/oauth/forgot-password",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "email", "value": "user@example.com" },
+                { "key": "return_to", "value": "{{pending_key}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "UserInfo (OIDC)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/oauth/userinfo",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Playground (dev)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/oauth/playground"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Protected (JWT)",
       "item": [
         {
           "name": "Me (profil)",

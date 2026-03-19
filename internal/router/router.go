@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/redis/go-redis/v9"
+	"github.com/retich-corp/auth/internal/cache"
 	"github.com/retich-corp/auth/internal/handlers"
 	"github.com/retich-corp/auth/internal/middleware"
 	tokenservice "github.com/retich-corp/auth/internal/service/token"
@@ -17,7 +17,7 @@ type Deps struct {
 	OAuthHandler   *handlers.OAuthHandler
 	AdminHandler   *handlers.AdminHandler
 	JWTService     *tokenservice.JWTService
-	Redis          *redis.Client
+	Cache          *cache.Cache
 	OriginChecker  middleware.OriginChecker
 }
 
@@ -45,12 +45,12 @@ func New(d Deps) http.Handler {
 
 	// Login form for OAuth flow
 	oauth.Handle("/login",
-		middleware.RateLimit(d.Redis, "oauth-login", 10, time.Minute)(
+		middleware.RateLimit(d.Cache, "oauth-login", 10, time.Minute)(
 			http.HandlerFunc(d.OAuthHandler.LoginForm),
 		),
 	).Methods(http.MethodGet)
 	oauth.Handle("/login",
-		middleware.RateLimit(d.Redis, "oauth-login", 10, time.Minute)(
+		middleware.RateLimit(d.Cache, "oauth-login", 10, time.Minute)(
 			http.HandlerFunc(d.OAuthHandler.LoginSubmit),
 		),
 	).Methods(http.MethodPost)
@@ -64,12 +64,12 @@ func New(d Deps) http.Handler {
 
 	// Forgot password during OAuth flow
 	oauth.Handle("/forgot-password",
-		middleware.RateLimit(d.Redis, "forgot-password", 3, time.Minute)(
+		middleware.RateLimit(d.Cache, "forgot-password", 3, time.Minute)(
 			http.HandlerFunc(d.OAuthHandler.ForgotPasswordForm),
 		),
 	).Methods(http.MethodGet)
 	oauth.Handle("/forgot-password",
-		middleware.RateLimit(d.Redis, "forgot-password", 3, time.Minute)(
+		middleware.RateLimit(d.Cache, "forgot-password", 3, time.Minute)(
 			http.HandlerFunc(d.OAuthHandler.ForgotPasswordSubmit),
 		),
 	).Methods(http.MethodPost)
@@ -78,7 +78,7 @@ func New(d Deps) http.Handler {
 	oauth.HandleFunc("/playground", d.OAuthHandler.Playground).Methods(http.MethodGet)
 
 	// UserInfo endpoint (protected by JWT)
-	jwtMiddleware := middleware.JWTAuth(d.JWTService, d.Redis, "")
+	jwtMiddleware := middleware.JWTAuth(d.JWTService, d.Cache, "")
 	oauthProtected := r.PathPrefix("/oauth").Subrouter()
 	oauthProtected.Use(jwtMiddleware)
 	oauthProtected.HandleFunc("/userinfo", d.OAuthHandler.UserInfo).Methods(http.MethodGet)
@@ -93,10 +93,40 @@ func New(d Deps) http.Handler {
 	admin.HandleFunc("/clients/{id}", d.AdminHandler.UpdateClient).Methods(http.MethodPatch)
 	admin.HandleFunc("/clients/{id}", d.AdminHandler.DeleteClient).Methods(http.MethodDelete)
 	admin.HandleFunc("/clients/{id}/activate", d.AdminHandler.ActivateClient).Methods(http.MethodPost)
+	admin.HandleFunc("/clients/{id}/users", d.AdminHandler.ListClientUsers).Methods(http.MethodGet)
 
-	// --- Auth callback routes (used in email links) ---
+	// --- Public auth routes (API / Postman) ---
 	auth := api.PathPrefix("/auth").Subrouter()
 
+	auth.Handle("/register",
+		middleware.RateLimit(d.Cache, "api-register", 5, time.Minute)(
+			http.HandlerFunc(d.AuthHandler.Register),
+		),
+	).Methods(http.MethodPost)
+	auth.Handle("/login",
+		middleware.RateLimit(d.Cache, "api-login", 10, time.Minute)(
+			http.HandlerFunc(d.AuthHandler.Login),
+		),
+	).Methods(http.MethodPost)
+	auth.HandleFunc("/refresh", d.AuthHandler.Refresh).Methods(http.MethodPost)
+	auth.Handle("/forgot-password",
+		middleware.RateLimit(d.Cache, "api-forgot", 3, time.Minute)(
+			http.HandlerFunc(d.AuthHandler.ForgotPassword),
+		),
+	).Methods(http.MethodPost)
+	auth.Handle("/resend-verification",
+		middleware.RateLimit(d.Cache, "api-resend", 3, time.Minute)(
+			http.HandlerFunc(d.AuthHandler.ResendVerification),
+		),
+	).Methods(http.MethodPost)
+	auth.Handle("/magic-link",
+		middleware.RateLimit(d.Cache, "api-magic", 3, time.Minute)(
+			http.HandlerFunc(d.AuthHandler.RequestMagicLink),
+		),
+	).Methods(http.MethodPost)
+	auth.HandleFunc("/magic-link/verify", d.AuthHandler.VerifyMagicLink).Methods(http.MethodGet)
+
+	// --- Auth callback routes (used in email links) ---
 	auth.HandleFunc("/verify-email", d.AuthHandler.VerifyEmail).Methods(http.MethodGet)
 	auth.HandleFunc("/reset-password", d.AuthHandler.ResetPasswordForm).Methods(http.MethodGet)
 	auth.HandleFunc("/reset-password", d.AuthHandler.ResetPassword).Methods(http.MethodPost)

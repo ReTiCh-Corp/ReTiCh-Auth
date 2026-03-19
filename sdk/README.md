@@ -130,7 +130,7 @@ Quand l'utilisateur se connecte, ReTiCh Auth retourne un `code` dans l'URL. Sans
 
 Le SDK génère un `code_verifier` aléatoire stocké uniquement dans le browser, et envoie son hash (`code_challenge`) à ReTiCh Auth. Pour échanger le code, il faut présenter le `code_verifier` original — impossible à deviner ou intercepter.
 
-```
+```text
 Attaquant intercepte ?code=abc123
   → tente d'échanger le code
   → ReTiCh Auth exige le code_verifier
@@ -142,7 +142,7 @@ Un site malveillant pourrait tenter de déclencher un callback OAuth sur ton app
 
 Le SDK génère un `state` aléatoire avant chaque login et vérifie qu'il correspond au retour du callback. Un callback forgé aura un `state` différent et sera rejeté.
 
-```
+```text
 Site malveillant envoie /callback?code=...&state=faux
   → SDK compare state reçu vs state stocké
   → différent → erreur, tokens jamais émis
@@ -151,7 +151,7 @@ Site malveillant envoie /callback?code=...&state=faux
 #### Protection par client_secret + PKCE
 Le `clientId` et `clientSecret` sont requis pour échanger un code OAuth contre des tokens. Même si quelqu'un intercepte le `code` dans l'URL de callback, il lui faut aussi le `code_verifier` PKCE (jamais envoyé sur le réseau) et le `clientSecret`.
 
-```
+```text
 Attaquant intercepte ?code=abc123
   → tente d'échanger le code
   → ReTiCh Auth exige le clientSecret ET le code_verifier
@@ -163,7 +163,7 @@ Attaquant intercepte ?code=abc123
 #### Redirect URI fixe
 ReTiCh Auth refuse tout callback vers une URL non enregistrée dans la console admin. Même avec ton `clientId`, personne ne peut rediriger les tokens vers un autre domaine.
 
-```
+```text
 Attaquant modifie redirect_uri=https://evil.com
   → ReTiCh Auth compare avec les URIs enregistrées
   → non autorisé → flow annulé
@@ -175,7 +175,7 @@ Chaque fois que le SDK renouvelle l'access token, l'ancien refresh token est ré
 #### Signature RS256 vérifiée côté serveur
 Les access tokens sont signés avec une clé RSA privée que seul ReTiCh Auth possède. Ton backend Node vérifie cette signature via la clé publique — un token forgé sera automatiquement rejeté même s'il contient les bonnes données.
 
-```
+```text
 Attaquant crée un faux token avec user_id=admin
   → Node vérifie la signature RS256
   → signature invalide → 401

@@ -59,7 +59,6 @@ Copier `.env.example` → `.env` et ajuster :
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | DSN PostgreSQL |
-| `REDIS_URL` | URL Redis (`redis://localhost:6379`) |
 | `JWT_PRIVATE_KEY_PATH` | Chemin vers la clé privée RSA (RS256) |
 | `APP_URL` | URL publique du service (`http://localhost:8081`) |
 | `ADMIN_API_KEY` | Clé secrète pour l'API admin (`X-Admin-Key`) |

@@ -5,8 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/redis/go-redis/v9"
-	redisclient "github.com/retich-corp/auth/internal/redis"
+	"github.com/retich-corp/auth/internal/cache"
 	tokenservice "github.com/retich-corp/auth/internal/service/token"
 	"github.com/retich-corp/auth/pkg/response"
 )
@@ -19,10 +18,10 @@ const (
 	ContextKeyEmail  contextKey = "email"
 )
 
-// JWTAuth validates the Bearer JWT and optionally checks the audience.
-// Pass a non-empty audience to restrict the route to tokens issued for a specific client.
-// Pass "" to accept tokens from any client (e.g. internal auth routes).
-func JWTAuth(jwtSvc *tokenservice.JWTService, rdb *redis.Client, audience string) func(http.Handler) http.Handler {
+// JWTAuth validates the Bearer JWT and checks the audience claim.
+// Pass a non-empty audience to restrict the route to tokens issued for that specific client.
+// Pass "" to accept tokens for any audience, but a token MUST still contain an audience claim.
+func JWTAuth(jwtSvc *tokenservice.JWTService, c *cache.Cache, audience string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -39,7 +38,13 @@ func JWTAuth(jwtSvc *tokenservice.JWTService, rdb *redis.Client, audience string
 				return
 			}
 
-			// Check audience if required
+			// Tokens must always have an audience claim
+			if len(claims.Audience) == 0 {
+				response.Error(w, http.StatusUnauthorized, "token missing audience claim")
+				return
+			}
+
+			// If a specific audience is required, check it matches
 			if audience != "" {
 				found := false
 				for _, aud := range claims.Audience {
@@ -55,8 +60,7 @@ func JWTAuth(jwtSvc *tokenservice.JWTService, rdb *redis.Client, audience string
 			}
 
 			// Check blacklist
-			blacklisted, err := redisclient.IsJWTBlacklisted(r.Context(), rdb, claims.ID)
-			if err != nil || blacklisted {
+			if c.Exists("jwt_blacklist:" + claims.ID) {
 				response.Error(w, http.StatusUnauthorized, "token has been revoked")
 				return
 			}

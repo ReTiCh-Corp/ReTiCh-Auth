@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
+	"github.com/retich-corp/auth/internal/cache"
 	"github.com/retich-corp/auth/internal/config"
 	"github.com/retich-corp/auth/internal/models"
 	"github.com/retich-corp/auth/internal/repository"
@@ -72,7 +72,7 @@ type Service struct {
 	tokenRepo   *repository.TokenRepository
 	jwtSvc      *tokenservice.JWTService
 	sessionSvc  *sessionsvc.Service
-	redis       *redis.Client
+	cache       *cache.Cache
 }
 
 func NewService(
@@ -82,7 +82,7 @@ func NewService(
 	tokenRepo *repository.TokenRepository,
 	jwtSvc *tokenservice.JWTService,
 	sessionSvc *sessionsvc.Service,
-	rdb *redis.Client,
+	c *cache.Cache,
 ) *Service {
 	return &Service{
 		cfg:        cfg,
@@ -91,12 +91,41 @@ func NewService(
 		tokenRepo:  tokenRepo,
 		jwtSvc:     jwtSvc,
 		sessionSvc: sessionSvc,
-		redis:      rdb,
+		cache:      c,
 	}
 }
 
 func (s *Service) ListClients(ctx context.Context) ([]*models.OAuthClient, error) {
 	return s.oauthRepo.ListClients(ctx)
+}
+
+// ListClientUsers returns the users for a client. id can be the internal UUID or the OAuth client_id.
+func (s *Service) ListClientUsers(ctx context.Context, id string) ([]*repository.ClientUser, error) {
+	var clientID string
+
+	// Try internal UUID first, then fall back to OAuth client_id
+	uid, err := uuid.Parse(id)
+	if err == nil {
+		client, err := s.oauthRepo.GetClientByUUID(ctx, uid)
+		if err == nil {
+			clientID = client.ClientID
+		} else {
+			// UUID is valid but not an internal id — try as OAuth client_id
+			client, err := s.oauthRepo.GetClientByClientID(ctx, id)
+			if err != nil {
+				return nil, apperrors.ErrNotFound
+			}
+			clientID = client.ClientID
+		}
+	} else {
+		client, err := s.oauthRepo.GetClientByClientID(ctx, id)
+		if err != nil {
+			return nil, apperrors.ErrNotFound
+		}
+		clientID = client.ClientID
+	}
+
+	return s.oauthRepo.ListUsersByClientID(ctx, clientID)
 }
 
 func (s *Service) GetClient(ctx context.Context, id string) (*models.OAuthClient, error) {
@@ -162,21 +191,19 @@ func (s *Service) ValidateAuthRequest(ctx context.Context, req AuthRequest) (*mo
 	return client, nil
 }
 
-// StorePendingAuth saves the authorization request in Redis and returns a short key.
+// StorePendingAuth saves the authorization request in cache and returns a short key.
 // The key is included in the login redirect so the flow can resume after login.
 func (s *Service) StorePendingAuth(ctx context.Context, req AuthRequest) (string, error) {
 	key := uuid.New().String()
 	val := encodePendingAuth(req)
-	if err := s.redis.Set(ctx, pendingKey(key), val, pendingAuthTTL).Err(); err != nil {
-		return "", fmt.Errorf("storing pending auth: %w", err)
-	}
+	s.cache.Set(pendingKey(key), val, pendingAuthTTL)
 	return key, nil
 }
 
 // LoadPendingAuth retrieves a pending authorization request by key.
 func (s *Service) LoadPendingAuth(ctx context.Context, pendingKey string) (*AuthRequest, error) {
-	val, err := s.redis.Get(ctx, pendingKeyPrefix+pendingKey).Result()
-	if err != nil {
+	val, ok := s.cache.Get(pendingKeyPrefix + pendingKey)
+	if !ok {
 		return nil, fmt.Errorf("pending auth not found or expired")
 	}
 	req, err := decodePendingAuth(val)
@@ -199,9 +226,7 @@ func (s *Service) GetConsentData(ctx context.Context, pendingAuthKey string) (*C
 	}
 
 	csrfToken := uuid.New().String()
-	if err := s.redis.Set(ctx, csrfKey(pendingAuthKey), csrfToken, pendingAuthTTL).Err(); err != nil {
-		return nil, fmt.Errorf("storing csrf token: %w", err)
-	}
+	s.cache.Set(csrfKey(pendingAuthKey), csrfToken, pendingAuthTTL)
 
 	return &ConsentData{
 		Client:     client,
@@ -230,13 +255,14 @@ func (s *Service) HasExistingConsent(ctx context.Context, userID uuid.UUID, clie
 func (s *Service) Approve(ctx context.Context, userID uuid.UUID, pendingAuthKey, csrfToken string, scopes []string) (string, string, error) {
 	// Verify CSRF token — skip when auto-approving (csrfToken == "")
 	if csrfToken != "" {
-		storedCSRF, err := s.redis.GetDel(ctx, csrfKey(pendingAuthKey)).Result()
-		if err != nil || storedCSRF != csrfToken {
+		storedCSRF, ok := s.cache.Get(csrfKey(pendingAuthKey))
+		if !ok || storedCSRF != csrfToken {
 			return "", "", fmt.Errorf("invalid CSRF token")
 		}
+		s.cache.Del(csrfKey(pendingAuthKey))
 	} else {
 		// Clean up any stale CSRF key just in case
-		s.redis.Del(ctx, csrfKey(pendingAuthKey))
+		s.cache.Del(csrfKey(pendingAuthKey))
 	}
 
 	req, err := s.LoadPendingAuth(ctx, pendingAuthKey)
@@ -266,7 +292,7 @@ func (s *Service) Approve(ctx context.Context, userID uuid.UUID, pendingAuthKey,
 	}
 
 	// Clean up pending auth
-	s.redis.Del(ctx, pendingKeyPrefix+pendingAuthKey)
+	s.cache.Del(pendingKeyPrefix + pendingAuthKey)
 
 	redirectURI := req.RedirectURI + "?code=" + rawCode + "&state=" + req.State
 	return rawCode, redirectURI, nil
@@ -278,8 +304,8 @@ func (s *Service) Deny(ctx context.Context, pendingAuthKey string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	s.redis.Del(ctx, pendingKeyPrefix+pendingAuthKey)
-	s.redis.Del(ctx, csrfKey(pendingAuthKey))
+	s.cache.Del(pendingKeyPrefix + pendingAuthKey)
+	s.cache.Del(csrfKey(pendingAuthKey))
 	return req.RedirectURI + "?error=access_denied&state=" + req.State, nil
 }
 
@@ -440,7 +466,7 @@ func csrfKey(pendingKey string) string {
 	return "oauth:csrf:" + pendingKey
 }
 
-// encodePendingAuth serializes an AuthRequest as a pipe-separated string for Redis.
+// encodePendingAuth serializes an AuthRequest as a pipe-separated string.
 func encodePendingAuth(req AuthRequest) string {
 	return strings.Join([]string{
 		req.ClientID,

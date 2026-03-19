@@ -12,10 +12,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
+	"github.com/retich-corp/auth/internal/cache"
 	"github.com/retich-corp/auth/internal/config"
 	"github.com/retich-corp/auth/internal/models"
-	redisclient "github.com/retich-corp/auth/internal/redis"
 	"github.com/retich-corp/auth/internal/repository"
 	emailservice "github.com/retich-corp/auth/internal/service/email"
 	tokenservice "github.com/retich-corp/auth/internal/service/token"
@@ -30,7 +29,7 @@ type Service struct {
 	sessionRepo *repository.SessionRepository
 	jwtSvc      *tokenservice.JWTService
 	emailSvc    *emailservice.EmailService
-	redis       *redis.Client
+	cache       *cache.Cache
 }
 
 func NewService(
@@ -40,7 +39,7 @@ func NewService(
 	sessionRepo *repository.SessionRepository,
 	jwtSvc *tokenservice.JWTService,
 	emailSvc *emailservice.EmailService,
-	rdb *redis.Client,
+	c *cache.Cache,
 ) *Service {
 	return &Service{
 		cfg:         cfg,
@@ -49,7 +48,7 @@ func NewService(
 		sessionRepo: sessionRepo,
 		jwtSvc:      jwtSvc,
 		emailSvc:    emailSvc,
-		redis:       rdb,
+		cache:       c,
 	}
 }
 
@@ -235,14 +234,16 @@ func (s *Service) Logout(ctx context.Context, rawRefreshToken, jwtJTI string, jw
 	}
 
 	// Blacklist JWT even if refresh token not found
-	return redisclient.BlacklistJWT(ctx, s.redis, jwtJTI, jwtTTL)
+	s.cache.Set("jwt_blacklist:"+jwtJTI, "1", jwtTTL)
+	return nil
 }
 
 // LogoutAll revokes all sessions and tokens for the user, and blacklists current JWT.
 func (s *Service) LogoutAll(ctx context.Context, userID uuid.UUID, jwtJTI string, jwtTTL time.Duration) error {
 	_ = s.tokenRepo.RevokeAllRefreshTokensForUser(ctx, userID)
 	_ = s.sessionRepo.DeleteAllForUser(ctx, userID)
-	return redisclient.BlacklistJWT(ctx, s.redis, jwtJTI, jwtTTL)
+	s.cache.Set("jwt_blacklist:"+jwtJTI, "1", jwtTTL)
+	return nil
 }
 
 // ForgotPassword sends a password reset email.

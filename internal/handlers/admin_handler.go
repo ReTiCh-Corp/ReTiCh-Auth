@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/retich-corp/auth/internal/repository"
 	oauthservice "github.com/retich-corp/auth/internal/service/oauth"
 	"github.com/retich-corp/auth/internal/validator"
 	"github.com/retich-corp/auth/pkg/apperrors"
@@ -163,6 +164,31 @@ func (h *AdminHandler) ActivateClient(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, "client activated", nil)
+}
+
+// GET /api/v1/admin/clients/{id}/users
+func (h *AdminHandler) ListClientUsers(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("X-Admin-Key") != h.adminAPIKey || h.adminAPIKey == "" {
+		response.Error(w, http.StatusUnauthorized, "invalid or missing X-Admin-Key")
+		return
+	}
+
+	id := mux.Vars(r)["id"]
+	users, err := h.oauthSvc.ListClientUsers(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrNotFound) {
+			response.Error(w, http.StatusNotFound, "client not found")
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, "failed to list users")
+		return
+	}
+
+	if users == nil {
+		users = make([]*repository.ClientUser, 0)
+	}
+
+	response.Success(w, http.StatusOK, "users", users)
 }
 
 // DELETE /api/v1/admin/clients/{id}

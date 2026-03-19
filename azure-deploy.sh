@@ -15,21 +15,25 @@ if [ -f ".env.prod" ]; then
   # shellcheck disable=SC1091
   source .env.prod
   set +o allexport
+elif [ -f ".env" ]; then
+  echo "==> .env.prod absent, chargement de .env"
+  set -o allexport
+  # shellcheck disable=SC1091
+  source .env
+  set +o allexport
 fi
 
 # ---------------------------------------------------------------------------
 # CONFIGURATION — modifier ces valeurs avant de lancer
 # ---------------------------------------------------------------------------
 RESOURCE_GROUP="rg-retich-auth"
-LOCATION="francecentral"
+LOCATION="francesouth"                      # france south est moins cher que francecentral
 ACR_NAME="retichauth"                      # doit être unique globalement (lowercase, pas de tirets)
 CONTAINERAPP_ENV="retich-env"
 CONTAINERAPP_NAME="retich-auth"
 POSTGRES_SERVER="retich-postgres"
 POSTGRES_DB="auth"
 POSTGRES_USER="retich"
-REDIS_NAME="retich-redis"
-
 # Secrets (lus depuis les variables d'env pour ne pas les écrire en clair ici)
 # Exporter avant de lancer :
 #   export POSTGRES_PASSWORD="..."
@@ -99,6 +103,7 @@ if [ -z "$POSTGRES_EXISTS" ]; then
     --storage-size 32 \
     --version 16 \
     --public-access 0.0.0.0 \
+    --performance-tier P4 \
     --output none
 else
   echo "    Serveur PostgreSQL déjà existant, ignoré."
@@ -124,26 +129,7 @@ POSTGRES_HOST="${POSTGRES_SERVER}.postgres.database.azure.com"
 DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}/${POSTGRES_DB}?sslmode=require"
 
 # ---------------------------------------------------------------------------
-echo "==> 4. Azure Cache for Redis"
-# ---------------------------------------------------------------------------
-az redis create \
-  --name "$REDIS_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --location "$LOCATION" \
-  --sku Basic \
-  --vm-size c0 \
-  --output none
-
-REDIS_KEY=$(az redis list-keys \
-  --name "$REDIS_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --query primaryKey -o tsv)
-
-REDIS_HOST="${REDIS_NAME}.redis.cache.windows.net"
-REDIS_URL="rediss://:${REDIS_KEY}@${REDIS_HOST}:6380"
-
-# ---------------------------------------------------------------------------
-echo "==> 5. Container Apps Environment"
+echo "==> 4. Container Apps Environment"
 # ---------------------------------------------------------------------------
 az containerapp env create \
   --name "$CONTAINERAPP_ENV" \
@@ -152,58 +138,64 @@ az containerapp env create \
   --output none
 
 # ---------------------------------------------------------------------------
-echo "==> 6. Déploiement Container App"
+echo "==> 5. Déploiement Container App"
 # ---------------------------------------------------------------------------
 ACR_PASSWORD=$(az acr credential show \
   --name "$ACR_NAME" \
   --query passwords[0].value -o tsv)
 
-az containerapp create \
-  --name "$CONTAINERAPP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --environment "$CONTAINERAPP_ENV" \
-  --image "$IMAGE_TAG" \
-  --registry-server "${ACR_NAME}.azurecr.io" \
-  --registry-username "$ACR_NAME" \
-  --registry-password "$ACR_PASSWORD" \
-  --target-port 8081 \
-  --ingress external \
-  --min-replicas 1 \
-  --max-replicas 3 \
-  --secrets \
-    "rsa-key=${RSA_PRIVATE_KEY}" \
-    "db-url=${DATABASE_URL}" \
-    "redis-url=${REDIS_URL}" \
-    "admin-key=${ADMIN_API_KEY}" \
-    "resend-key=${RESEND_API_KEY}" \
-    "session-secret=${SESSION_SECRET}" \
-  --env-vars \
-    "PORT=8081" \
-    "ENVIRONMENT=production" \
-    "DATABASE_URL=secretref:db-url" \
-    "REDIS_URL=secretref:redis-url" \
-    "RSA_PRIVATE_KEY=secretref:rsa-key" \
-    "ADMIN_API_KEY=secretref:admin-key" \
-    "RESEND_API_KEY=secretref:resend-key" \
-    "SESSION_SECRET=secretref:session-secret" \
-    "APP_URL=${APP_URL}" \
-    "ALLOWED_ORIGINS=${ALLOWED_ORIGINS}" \
-    "ALLOWED_REDIRECT_URLS=${ALLOWED_REDIRECT_URLS}" \
-    "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}" \
-    "RESEND_FROM_NAME=${RESEND_FROM_NAME}" \
-    "JWT_EXPIRATION=15m" \
-    "REFRESH_TOKEN_EXPIRATION=168h" \
-    "BCRYPT_COST=12" \
-    "ACCOUNT_LOCKOUT_ATTEMPTS=5" \
-    "ACCOUNT_LOCKOUT_DURATION=15m" \
-    "EMAIL_VERIFICATION_EXPIRY=24h" \
-    "PASSWORD_RESET_EXPIRY=1h" \
-    "MAGIC_LINK_EXPIRY=15m" \
-    "REQUIRE_EMAIL_VERIFICATION=true" \
+CONTAINER_APP_ARGS=(
+  --name "$CONTAINERAPP_NAME"
+  --resource-group "$RESOURCE_GROUP"
+  --environment "$CONTAINERAPP_ENV"
+  --image "$IMAGE_TAG"
+  --registry-server "${ACR_NAME}.azurecr.io"
+  --registry-username "$ACR_NAME"
+  --registry-password "$ACR_PASSWORD"
+  --target-port 8081
+  --ingress external
+  --min-replicas 0
+  --max-replicas 3
+  --scale-rule-name "http-rule"
+  --scale-rule-type "http"
+  --scale-rule-http-concurrency 50
+  --cpu 0.25
+  --memory 0.5Gi
+  --secrets
+    "rsa-key=${RSA_PRIVATE_KEY}"
+    "db-url=${DATABASE_URL}"
+    "admin-key=${ADMIN_API_KEY}"
+    "resend-key=${RESEND_API_KEY}"
+    "session-secret=${SESSION_SECRET}"
+  --env-vars
+    "PORT=8081"
+    "ENVIRONMENT=production"
+    "DATABASE_URL=secretref:db-url"
+    "RSA_PRIVATE_KEY=secretref:rsa-key"
+    "ADMIN_API_KEY=secretref:admin-key"
+    "RESEND_API_KEY=secretref:resend-key"
+    "SESSION_SECRET=secretref:session-secret"
+    "APP_URL=${APP_URL}"
+    "ALLOWED_ORIGINS=${ALLOWED_ORIGINS}"
+    "ALLOWED_REDIRECT_URLS=${ALLOWED_REDIRECT_URLS}"
+    "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL}"
+    "RESEND_FROM_NAME=${RESEND_FROM_NAME}"
+    "JWT_EXPIRATION=15m"
+    "REFRESH_TOKEN_EXPIRATION=168h"
+    "BCRYPT_COST=12"
+    "ACCOUNT_LOCKOUT_ATTEMPTS=5"
+    "ACCOUNT_LOCKOUT_DURATION=15m"
+    "EMAIL_VERIFICATION_EXPIRY=24h"
+    "PASSWORD_RESET_EXPIRY=1h"
+    "MAGIC_LINK_EXPIRY=15m"
+    "REQUIRE_EMAIL_VERIFICATION=true"
   --output none
+)
+
+az containerapp create "${CONTAINER_APP_ARGS[@]}"
 
 # ---------------------------------------------------------------------------
-echo "==> 7. Résultat"
+echo "==> 6. Résultat"
 # ---------------------------------------------------------------------------
 APP_FQDN=$(az containerapp show \
   --name "$CONTAINERAPP_NAME" \

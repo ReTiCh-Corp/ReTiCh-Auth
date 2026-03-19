@@ -15,7 +15,6 @@ type Config struct {
 	Environment string
 
 	DatabaseURL string
-	RedisURL    string
 
 	// RSAPrivateKeyPEM is the PEM-encoded RSA private key (PKCS#1 or PKCS#8) used
 	// to sign JWTs with RS256. Set via RSA_PRIVATE_KEY env var.
@@ -64,8 +63,7 @@ func Load() (*Config, error) {
 		Port:            getEnv("PORT", "8081"),
 		Environment:     getEnv("ENVIRONMENT", "development"),
 		DatabaseURL:      mustGetEnv("DATABASE_URL"),
-		RedisURL:         getEnv("REDIS_URL", "redis://localhost:6379"),
-		RSAPrivateKeyPEM: os.Getenv("RSA_PRIVATE_KEY"),
+RSAPrivateKeyPEM: os.Getenv("RSA_PRIVATE_KEY"),
 		ResendAPIKey:     mustGetEnv("RESEND_API_KEY"),
 		ResendFromEmail: getEnv("RESEND_FROM_EMAIL", "noreply@example.com"),
 		ResendFromName:  getEnv("RESEND_FROM_NAME", "ReTiCh Auth"),

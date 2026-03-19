@@ -1,6 +1,6 @@
 {
   "name": "@retish/auth",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "SDK client pour ReTiCh Auth",
   "author": "ReTiCh Corp",
   "license": "MIT",

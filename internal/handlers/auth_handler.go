@@ -77,7 +77,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Email    string `json:"email" validate:"required,email"`
 		Password string `json:"password" validate:"required"`
-		Audience string `json:"audience"` // optional, e.g. "app-shop"
+		Audience string `json:"audience" validate:"required"` // e.g. client_id or app name
 	}
 
 	errs, err := validator.Decode(r.Body, &body)
@@ -114,7 +114,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		RefreshToken string `json:"refresh_token" validate:"required"`
-		Audience     string `json:"audience"` // should match the audience used at login
+		Audience     string `json:"audience" validate:"required"` // must match the audience used at login
 	}
 
 	errs, err := validator.Decode(r.Body, &body)
