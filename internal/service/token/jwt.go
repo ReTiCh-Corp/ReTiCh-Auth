@@ -138,6 +138,7 @@ func (s *JWTService) GenerateAccessToken(userID uuid.UUID, email, audience, scop
 
 	registered := jwt.RegisteredClaims{
 		Issuer:    s.issuer,
+		Subject:   userID.String(),
 		ID:        jti,
 		IssuedAt:  jwt.NewNumericDate(now),
 		ExpiresAt: jwt.NewNumericDate(now.Add(s.expiration)),
