@@ -36,7 +36,7 @@ func (r *OAuthRepository) CreateClient(ctx context.Context, client *models.OAuth
 func (r *OAuthRepository) GetClientByClientID(ctx context.Context, clientID string) (*models.OAuthClient, error) {
 	c := &models.OAuthClient{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, client_id, client_secret_hash, name, logo_url, redirect_uris, allowed_scopes, is_active, created_at
+		SELECT id, client_id, client_secret_hash, name, COALESCE(logo_url, ''), redirect_uris, allowed_scopes, is_active, created_at
 		FROM oauth_clients WHERE client_id = $1`, clientID).Scan(
 		&c.ID, &c.ClientID, &c.ClientSecretHash, &c.Name, &c.LogoURL,
 		&c.RedirectURIs, &c.AllowedScopes, &c.IsActive, &c.CreatedAt,
@@ -82,7 +82,7 @@ func (r *OAuthRepository) GetAllowedOrigins(ctx context.Context) ([]string, erro
 
 func (r *OAuthRepository) ListClients(ctx context.Context) ([]*models.OAuthClient, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT id, client_id, client_secret_hash, name, logo_url, redirect_uris, allowed_scopes, is_active, created_at
+		SELECT id, client_id, client_secret_hash, name, COALESCE(logo_url, ''), redirect_uris, allowed_scopes, is_active, created_at
 		FROM oauth_clients ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (r *OAuthRepository) ListClients(ctx context.Context) ([]*models.OAuthClien
 func (r *OAuthRepository) GetClientByUUID(ctx context.Context, id uuid.UUID) (*models.OAuthClient, error) {
 	c := &models.OAuthClient{}
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, client_id, client_secret_hash, name, logo_url, redirect_uris, allowed_scopes, is_active, created_at
+		SELECT id, client_id, client_secret_hash, name, COALESCE(logo_url, ''), redirect_uris, allowed_scopes, is_active, created_at
 		FROM oauth_clients WHERE id = $1`, id).Scan(
 		&c.ID, &c.ClientID, &c.ClientSecretHash, &c.Name, &c.LogoURL,
 		&c.RedirectURIs, &c.AllowedScopes, &c.IsActive, &c.CreatedAt,
